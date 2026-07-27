@@ -1,1 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" 
+          content="width=device-width, initial-scale=1.0">
+    <title>Cookie Clicker Game</title>
+    <style>
+        /* Game styling */
+        body {
+            text-align: center;
+            font-family: 'Arial', sans-serif;
+            background-color: #f0e6d6;
+            margin-top: 50px;
+        }
+
+        h2 {
+            font-size: 32px;
+            color: #5e3d0c;
+        }
+
+        #cookie {
+            width: 200px;
+            height: 200px;
+            background-color: #d2691e;
+            border-radius: 50%;
+            display: inline-block;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            position: relative;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        #cookie:active {
+            transform: scale(0.9);
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .chocolate-chip {
+            width: 18px;
+            height: 18px;
+            background-color: #4b2e1f;
+            border-radius: 50%;
+            position: absolute;
+        }
+
+        /* Chip positions */
+        .chip1 {
+            top: 30px;
+            left: 60px;
+        }
+
+        .chip2 {
+            top: 70px;
+            right: 50px;
+        }
+
+        .chip3 {
+            bottom: 40px;
+            left: 80px;
+        }
+
+        .chip4 {
+            top: 100px;
+            left: 110px;
+        }
+
+        .chip5 {
+            bottom: 30px;
+            right: 60px;
+        }
+
+        .chip6 {
+            top: 40px;
+            right: 80px;
+        }
+
+        .chip7 {
+            bottom: 80px;
+            left: 40px;
+        }
+
+        #score {
+            font-size: 28px;
+            font-weight: bold;
+            margin: 20px 0;
+            color: #5e3d0c;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 18px;
+            cursor: pointer;
+            background-color: #8b4513;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #a0522d;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Cookie Clicker Game</h2>
+    <p>Score: <span id="score">0</span></p>
+    <div id="cookie">
+        <div class="chocolate-chip chip1"></div>
+        <div class="chocolate-chip chip2"></div>
+        <div class="chocolate-chip chip3"></div>
+        <div class="chocolate-chip chip4"></div>
+        <div class="chocolate-chip chip5"></div>
+        <div class="chocolate-chip chip6"></div>
+        <div class="chocolate-chip chip7"></div>
+    </div>
+    <br><br>
+    <button id="reset-button">Reset Score</button>
+
+    <script>
+        let score = 0;
+
+        // Increment score on cookie click
+        const cookie = document.getElementById('cookie');
+        const scoreDisplay = document.getElementById('score');
+        const resetButton = document.getElementById('reset-button');
+
+        cookie.addEventListener('click', () => {
+            score++;
+            scoreDisplay.textContent = score;
+        });
+
+        // Reset the score
+        resetButton.addEventListener('click', () => {
+            score = 0;
+            scoreDisplay.textContent = score;
+        });
+    </script>
+</body>
+
+</html>
