@@ -1,61 +1,347 @@
-function TrexRunnerBot() {
-  const makeKeyArgs = (keyCode) => {
-    const preventDefault = () => void 0;
-    return {keyCode, preventDefault};
-  };
-  const upKeyArgs = makeKeyArgs(38);
-  const downKeyArgs = makeKeyArgs(40);
-  const startArgs = makeKeyArgs(32);
-  if (!Runner().playing) {
-    Runner().onKeyDown(startArgs);
-    setTimeout(() => {
-      Runner().onKeyUp(startArgs);
-    }, 500);
-  }
-  function conquerTheGame() {
-    if (!Runner || !Runner().horizon.obstacles[0]) return;
-    const obstacle = Runner().horizon.obstacles[0];
-    if (obstacle.typeConfig && obstacle.typeConfig.type === 'SNACK') return;
-    if (needsToTackle(obstacle) && closeEnoughToTackle(obstacle)) tackle(obstacle);
-  }
-  function needsToTackle(obstacle) {
-    return obstacle.yPos !== 50;
-  }
-  function closeEnoughToTackle(obstacle) {
-    return obstacle.xPos <= Runner().currentSpeed * 18;
-  }
-  function tackle(obstacle) {
-    if (isDuckable(obstacle)) {
-      duck();
-    } else {
-      jumpOver(obstacle);
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dino Game Complete</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
-  }
-  function isDuckable(obstacle) {
-    return obstacle.yPos === 50;
-  }
-  function duck() {
-    Runner().onKeyDown(downKeyArgs);
-    setTimeout(() => {
-      Runner().onKeyUp(downKeyArgs);
-    }, 500);
-  }
-  function jumpOver(obstacle) {
-    if (isNextObstacleCloseTo(obstacle))
-      jumpFast();
-    else
-      Runner().onKeyDown(upKeyArgs);
-  }
-  function isNextObstacleCloseTo(currentObstacle) {
-    const nextObstacle = Runner().horizon.obstacles[1];
- 
-    return nextObstacle && nextObstacle.xPos - currentObstacle.xPos <= Runner().currentSpeed * 42;
-  }
-  function jumpFast() {
-    Runner().onKeyDown(upKeyArgs);
-    Runner().onKeyUp(upKeyArgs);
-  }
-  return {conquerTheGame: conquerTheGame};
-}
-let bot = TrexRunnerBot();
-let botInterval = setInterval(bot.conquerTheGame, 2);
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background-color: #f7f7f7;
+      font-family: 'Courier New', Courier, monospace;
+      transition: background-color 1s;
+    }
+
+    body.dark-mode {
+      background-color: #202124;
+      color: #fff;
+    }
+
+    #gameCanvas {
+      background-color: transparent;
+      border-bottom: 2px solid #535353;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    .instructions {
+      margin-top: 15px;
+      font-size: 14px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="gameCanvas" width="800" height="250"></canvas>
+  <p class="instructions">Pressione **Espaço** ou **Seta para Cima** para Pular!</p>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // --- CONFIGURAÇÕES DE ÁUDIO SINTETIZADO (Web Audio API) ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep(freq, type = 'sine', duration = 0.1) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    // --- ESTADOS DO JOGO ---
+    let gameStarted = false;
+    let gameOver = false;
+    let score = 0;
+    let highScore = localStorage.getItem('dino_highscore') || 0;
+    let speed = 6;
+    let frameCount = 0;
+    let isDarkMode = false;
+
+    // --- OBJETO DO DINOSSAURO ---
+    const dino = {
+      x: 50,
+      y: 190,
+      width: 44,
+      height: 47,
+      velocityY: 0,
+      gravity: 0.6,
+      jumpForce: -11,
+      isGrounded: true,
+      legFrame: 0,
+
+      jump() {
+        if (this.isGrounded) {
+          this.velocityY = this.jumpForce;
+          this.isGrounded = false;
+          playBeep(400, 'square', 0.08);
+        }
+      },
+
+      update() {
+        this.velocityY += this.gravity;
+        this.y += this.velocityY;
+
+        // Limite do chão
+        if (this.y >= 190) {
+          this.y = 190;
+          this.velocityY = 0;
+          this.isGrounded = true;
+        }
+
+        // Alterna as perninhas para animação de corrida
+        if (frameCount % 6 === 0) {
+          this.legFrame = this.legFrame === 0 ? 1 : 0;
+        }
+      },
+
+      draw() {
+        const color = isDarkMode ? '#e8eaed' : '#535353';
+        ctx.fillStyle = color;
+
+        // Corpo Principal
+        ctx.fillRect(this.x + 12, this.y, 22, 25);
+        // Cabeça e Bico
+        ctx.fillRect(this.x + 20, this.y - 12, 24, 16);
+        // Olho
+        ctx.fillStyle = isDarkMode ? '#202124' : '#ffffff';
+        ctx.fillRect(this.x + 36, this.y - 8, 4, 4);
+
+        ctx.fillStyle = color;
+        // Braço
+        ctx.fillRect(this.x + 30, this.y + 12, 6, 4);
+        // Cauda
+        ctx.fillRect(this.x, this.y + 8, 12, 10);
+
+        // Pernas (Animação)
+        if (this.isGrounded && gameStarted && !gameOver) {
+          if (this.legFrame === 0) {
+            ctx.fillRect(this.x + 16, this.y + 25, 6, 12);
+            ctx.fillRect(this.x + 28, this.y + 25, 6, 6);
+          } else {
+            ctx.fillRect(this.x + 16, this.y + 25, 6, 6);
+            ctx.fillRect(this.x + 28, this.y + 25, 6, 12);
+          }
+        } else {
+          // No ar
+          ctx.fillRect(this.x + 16, this.y + 25, 6, 10);
+          ctx.fillRect(this.x + 26, this.y + 25, 6, 10);
+        }
+      }
+    };
+
+    // --- SISTEMA DE OBSTÁCULOS ---
+    const obstacles = [];
+
+    class Obstacle {
+      constructor() {
+        this.x = canvas.width;
+        
+        // Sorteia tipo: 0 (Cacto Pequeno), 1 (Cacto Grande), 2 (Pterodáctilo - só após 300 pts)
+        const types = score > 300 ? [0, 1, 2] : [0, 1];
+        this.type = types[Math.floor(Math.random() * types.length)];
+
+        if (this.type === 0) {
+          this.width = 18;
+          this.height = 36;
+          this.y = 237 - this.height;
+        } else if (this.type === 1) {
+          this.width = 26;
+          this.height = 48;
+          this.y = 237 - this.height;
+        } else if (this.type === 2) {
+          this.width = 34;
+          this.height = 24;
+          // Pterodáctilo voa em 2 alturas diferentes (alta ou baixa)
+          this.y = Math.random() > 0.5 ? 150 : 185;
+          this.wingFrame = 0;
+        }
+      }
+
+      update() {
+        this.x -= speed;
+        if (this.type === 2 && frameCount % 10 === 0) {
+          this.wingFrame = this.wingFrame === 0 ? 1 : 0;
+        }
+      }
+
+      draw() {
+        ctx.fillStyle = isDarkMode ? '#acadbc' : '#258039';
+
+        if (this.type === 0 || this.type === 1) {
+          // Desenho do Cacto
+          ctx.fillRect(this.x + this.width / 3, this.y, this.width / 3, this.height);
+          ctx.fillRect(this.x, this.y + 8, this.width, 8);
+          ctx.fillRect(this.x, this.y + 8, 4, 14);
+          ctx.fillRect(this.x + this.width - 4, this.y + 8, 4, 18);
+        } else {
+          // Desenho do Pterodáctilo
+          ctx.fillStyle = isDarkMode ? '#e8eaed' : '#737373';
+          ctx.fillRect(this.x + 8, this.y + 8, 20, 8); // Corpo
+          ctx.fillRect(this.x, this.y + 4, 10, 6);   // Cabeça
+
+          // Asas batendo
+          if (this.wingFrame === 0) {
+            ctx.fillRect(this.x + 12, this.y - 6, 8, 14); // Asa para cima
+          } else {
+            ctx.fillRect(this.x + 12, this.y + 12, 8, 12); // Asa para baixo
+          }
+        }
+      }
+    }
+
+    // --- LOOP PRINCIPAL DO JOGO ---
+    let spawnTimer = 0;
+
+    function gameLoop() {
+      frameCount++;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 1. Desenhar Chão Profundo e Linha
+      const lineColor = isDarkMode ? '#5f6368' : '#535353';
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 237);
+      ctx.lineTo(canvas.width, 237);
+      ctx.stroke();
+
+      if (gameStarted && !gameOver) {
+        // Aumenta a pontuação e a velocidade gradualmente
+        score += 0.15;
+        speed += 0.0008;
+
+        // Alterna Modo Noturno a cada 500 pontos
+        if (Math.floor(score) % 500 === 0 && Math.floor(score) > 0) {
+          isDarkMode = Math.floor(score / 500) % 2 === 1;
+          document.body.classList.toggle('dark-mode', isDarkMode);
+        }
+
+        // Spawn de Obstáculos
+        spawnTimer++;
+        if (spawnTimer > Math.max(50, 100 - speed * 3)) {
+          if (Math.random() < 0.6) {
+            obstacles.push(new Obstacle());
+            spawnTimer = 0;
+          }
+        }
+
+        // Atualização e Checagem de Colisão
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+          obstacles[i].update();
+          obstacles[i].draw();
+
+          // Colisão AABB (Axis-Aligned Bounding Box)
+          const o = obstacles[i];
+          if (
+            dino.x < o.x + o.width &&
+            dino.x + dino.width > o.x &&
+            dino.y < o.y + o.height &&
+            dino.y + dino.height > o.y
+          ) {
+            triggerGameOver();
+          }
+
+          // Remove obstáculos fora da tela
+          if (o.x + o.width < 0) {
+            obstacles.splice(i, 1);
+          }
+        }
+
+        dino.update();
+      }
+
+      dino.draw();
+
+      // UI: Placar de Pontuação
+      drawScore();
+
+      // Telas de Menu/Game Over
+      if (!gameStarted) {
+        drawCenterText("PRESSIONE ESPAÇO PARA JOGAR");
+      } else if (gameOver) {
+        drawCenterText("GAME OVER", "Pressione Espaço para Reiniciar");
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // --- FUNÇÕES AUXILIARES ---
+    function drawScore() {
+      ctx.fillStyle = isDarkMode ? '#e8eaed' : '#535353';
+      ctx.font = '16px "Courier New"';
+      ctx.textAlign = 'right';
+      
+      const currentFormatted = Math.floor(score).toString().padStart(5, '0');
+      const highFormatted = Math.floor(highScore).toString().padStart(5, '0');
+      
+      ctx.fillText(`HI ${highFormatted}  ${currentFormatted}`, canvas.width - 20, 30);
+    }
+
+    function drawCenterText(title, subtitle = "") {
+      ctx.fillStyle = isDarkMode ? '#e8eaed' : '#535353';
+      ctx.textAlign = 'center';
+      
+      ctx.font = 'bold 20px "Courier New"';
+      ctx.fillText(title, canvas.width / 2, 100);
+
+      if (subtitle) {
+        ctx.font = '14px "Courier New"';
+        ctx.fillText(subtitle, canvas.width / 2, 130);
+      }
+    }
+
+    function triggerGameOver() {
+      gameOver = true;
+      playBeep(150, 'sawtooth', 0.25);
+
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('dino_highscore', highScore);
+      }
+    }
+
+    function restartGame() {
+      score = 0;
+      speed = 6;
+      obstacles.length = 0;
+      gameOver = false;
+      gameStarted = true;
+      dino.y = 190;
+      dino.velocityY = 0;
+    }
+
+    // --- CONTROLES ---
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' || e.code === 'ArrowUp') {
+        e.preventDefault();
+        
+        if (!gameStarted || gameOver) {
+          restartGame();
+        } else {
+          dino.jump();
+        }
+      }
+    });
+
+    // Inicia o Loop principal
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
