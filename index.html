@@ -17,12 +17,12 @@
       overflow: hidden;
       background-color: #f7f7f7;
       font-family: 'Courier New', Courier, monospace;
-      transition: background-color 0.8s;
+      transition: background-color 1.5s ease;
       user-select: none;
     }
 
     body.dark-mode {
-      background-color: #202124;
+      background-color: #121316;
       color: #fff;
     }
 
@@ -55,7 +55,7 @@
     }
 
     body.dark-mode #start-screen {
-      background-color: rgba(32, 33, 36, 0.9);
+      background-color: rgba(18, 19, 22, 0.9);
     }
 
     #start-screen h1 {
@@ -98,9 +98,10 @@
 
     .instructions {
       margin-top: 25px;
-      font-size: 16px;
+      font-size: 15px;
       color: #666;
       text-align: center;
+      line-height: 1.6;
     }
 
     body.dark-mode .instructions {
@@ -115,7 +116,8 @@
       <h1>Dino: O Último Salto</h1>
       <button id="start-btn">COMEÇAR</button>
       <p class="instructions">
-        <strong>Espaço / Seta Cima</strong>: Pular | <strong>Seta Baixo</strong>: Abaixar
+        <strong>Espaço / Seta Cima</strong>: Pular | <strong>Seta Baixo</strong>: Abaixar<br>
+        <strong>A / Ctrl</strong>: Atirar (quando equipado)
       </p>
     </div>
 
@@ -137,7 +139,7 @@
       if (dino) dino.groundY = groundY - dino.normalHeight;
     }
 
-    // --- EFETO SONORO (Web Audio API) ---
+    // --- EFEITO SONORO (Web Audio API) ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playBeep(freq, type = 'sine', duration = 0.08) {
       if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -161,6 +163,17 @@
     let speed = 7;
     let frameCount = 0;
     let isDarkMode = false;
+    let lastScoreCheck = 0;
+
+    // SISTEMA DE ARMA
+    let hasGun = false;
+    let ammo = 0;
+    const bullets = [];
+    const items = [];
+
+    // SISTEMA DIA/NOITE (30 SEGUNDOS)
+    let dayNightTimer = 0;
+    const CYCLE_DURATION = 1800; // 30s * 60fps
 
     // --- CONTROLES DE TECLADO ---
     const keys = { up: false, down: false };
@@ -168,13 +181,14 @@
     // --- PARTÍCULAS ---
     const particles = [];
     class Particle {
-      constructor(x, y) {
+      constructor(x, y, color) {
         this.x = x;
         this.y = y;
         this.size = Math.random() * 4 + 2;
-        this.vx = -speed * 0.4 + (Math.random() - 0.5);
-        this.vy = (Math.random() - 0.5) * 1.5;
+        this.vx = -speed * 0.4 + (Math.random() - 0.5) * 2;
+        this.vy = (Math.random() - 0.5) * 2;
         this.life = 20;
+        this.color = color;
       }
       update() {
         this.x += this.vx;
@@ -182,7 +196,7 @@
         this.life--;
       }
       draw() {
-        ctx.fillStyle = isDarkMode ? 'rgba(255,255,255,0.3)' : 'rgba(83,83,83,0.3)';
+        ctx.fillStyle = this.color || (isDarkMode ? 'rgba(255,255,255,0.3)' : 'rgba(83,83,83,0.3)');
         ctx.fillRect(Math.floor(this.x), Math.floor(this.y), this.size, this.size);
       }
     }
@@ -201,12 +215,65 @@
           speed: Math.random() * 0.5 + 0.5
         });
       }
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 30; i++) {
         stars.push({
           x: Math.random() * window.innerWidth,
           y: Math.random() * (window.innerHeight * 0.5) + 10,
           size: Math.random() > 0.5 ? 2 : 3
         });
+      }
+    }
+
+    // --- PROJÉTEIS (TIROS) ---
+    class Bullet {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.speed = 15;
+        this.width = 12;
+        this.height = 4;
+      }
+      update() {
+        this.x += this.speed;
+      }
+      draw() {
+        ctx.fillStyle = '#ff3838';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.fillStyle = '#fff000';
+        ctx.fillRect(this.x - 4, this.y + 1, 4, 2);
+      }
+    }
+
+    // --- ITENS (ARMA / MUNIÇÃO) ---
+    class Item {
+      constructor(type) {
+        this.x = canvas.width;
+        this.type = type; // 'gun' ou 'ammo'
+        this.width = 24;
+        this.height = 24;
+        this.y = groundY - 30;
+      }
+      update() {
+        this.x -= speed;
+      }
+      draw() {
+        if (this.type === 'gun') {
+          // Arma (Azul)
+          ctx.fillStyle = '#2980b9';
+          ctx.fillRect(this.x, this.y + 6, 20, 8);
+          ctx.fillRect(this.x + 12, this.y + 14, 6, 8);
+          ctx.fillStyle = '#3498db';
+          ctx.fillRect(this.x + 4, this.y + 2, 12, 4);
+        } else {
+          // Caixa de Munição (Amarela)
+          ctx.fillStyle = '#f39c12';
+          ctx.fillRect(this.x, this.y, 22, 18);
+          ctx.fillStyle = '#d35400';
+          ctx.fillRect(this.x + 2, groundY - 30 + 2, 18, 14);
+          ctx.fillStyle = '#f1c40f';
+          ctx.font = 'bold 10px monospace';
+          ctx.fillText('AMMO', this.x + 1, this.y + 12);
+        }
       }
     }
 
@@ -227,6 +294,17 @@
       isGrounded: true,
       isDucking: false,
       legFrame: 0,
+
+      shoot() {
+        if (hasGun && ammo > 0 && gameStarted && !gameOver) {
+          ammo--;
+          bullets.push(new Bullet(this.x + this.width, this.y + (this.isDucking ? 10 : 15)));
+          playBeep(800, 'sawtooth', 0.05);
+          if (ammo <= 0) {
+            hasGun = false;
+          }
+        }
+      },
 
       jump() {
         if (this.isGrounded && !this.isDucking) {
@@ -284,7 +362,7 @@
           ctx.fillRect(this.x + 20, this.y - 12, 24, 16); 
           ctx.fillRect(this.x + 40, this.y - 4, 8, 8);   
           
-          ctx.fillStyle = isDarkMode ? '#202124' : '#ffffff';
+          ctx.fillStyle = isDarkMode ? '#121316' : '#ffffff';
           ctx.fillRect(this.x + 34, this.y - 9, 4, 4);
           ctx.fillStyle = c;
 
@@ -304,12 +382,19 @@
             ctx.fillRect(this.x + 16, this.y + 25, 6, 10);
             ctx.fillRect(this.x + 26, this.y + 25, 6, 10);
           }
+
+          // Arma desenhada no Dino
+          if (hasGun) {
+            ctx.fillStyle = '#2980b9';
+            ctx.fillRect(this.x + 32, this.y + 4, 16, 6);
+            ctx.fillRect(this.x + 44, this.y + 6, 4, 2);
+          }
         } else {
           ctx.fillRect(this.x + 10, this.y, 36, 18);     
           ctx.fillRect(this.x + 40, this.y + 2, 18, 12); 
           ctx.fillRect(this.x + 54, this.y + 6, 6, 6);   
           
-          ctx.fillStyle = isDarkMode ? '#202124' : '#ffffff';
+          ctx.fillStyle = isDarkMode ? '#121316' : '#ffffff';
           ctx.fillRect(this.x + 50, this.y + 4, 3, 3);
           ctx.fillStyle = c;
 
@@ -323,6 +408,11 @@
             ctx.fillRect(this.x + 16, this.y + 18, 6, 4);
             ctx.fillRect(this.x + 32, this.y + 18, 6, 10);
           }
+
+          if (hasGun) {
+            ctx.fillStyle = '#2980b9';
+            ctx.fillRect(this.x + 46, this.y + 8, 14, 5);
+          }
         }
       }
     };
@@ -333,7 +423,6 @@
     class Obstacle {
       constructor() {
         this.x = canvas.width;
-        // Pterodáctilos surgem com mais frequência conforme o jogo avança
         const types = score > 150 ? [0, 1, 2, 3, 3] : [0, 1, 2];
         this.type = types[Math.floor(Math.random() * types.length)];
 
@@ -350,11 +439,8 @@
           this.height = 54;
           this.y = groundY - this.height;
         } else if (this.type === 3) {
-          // Pterodáctilo do jogo original
           this.width = 46;
           this.height = 32;
-          // Três alturas possíveis:
-          // Alta (passa direto), Média (exige agachar), Baixa (exige pular)
           const heights = [groundY - 75, groundY - 45, groundY - 15];
           this.y = heights[Math.floor(Math.random() * heights.length)];
           this.wingFrame = 0;
@@ -363,7 +449,6 @@
 
       update() {
         this.x -= speed;
-        // Alterna o bater de asas do pterodáctilo
         if (this.type === 3 && frameCount % 8 === 0) {
           this.wingFrame = this.wingFrame === 0 ? 1 : 0;
         }
@@ -374,31 +459,28 @@
         ctx.fillStyle = c;
 
         if (this.type < 3) {
-          // Cactos
           ctx.fillRect(this.x + 4, this.y, this.width - 8, this.height);
           ctx.fillRect(this.x, this.y + 10, this.width, 6);
           ctx.fillRect(this.x, this.y + 4, 4, 12);
           ctx.fillRect(this.x + this.width - 4, this.y + 6, 4, 14);
         } else {
-          // Pterodáctilo
           const pColor = isDarkMode ? '#e8eaed' : '#535353';
           ctx.fillStyle = pColor;
           
-          ctx.fillRect(this.x + 14, this.y + 10, 24, 10); // Corpo
-          ctx.fillRect(this.x, this.y + 8, 14, 8);        // Cabeça / Bico
-          ctx.fillRect(this.x + 38, this.y + 12, 8, 4);   // Cauda
+          ctx.fillRect(this.x + 14, this.y + 10, 24, 10);
+          ctx.fillRect(this.x, this.y + 8, 14, 8);        
+          ctx.fillRect(this.x + 38, this.y + 12, 8, 4);   
 
-          // Asas em animação
           if (this.wingFrame === 0) {
-            ctx.fillRect(this.x + 18, this.y - 10, 10, 20); // Asa para Cima
+            ctx.fillRect(this.x + 18, this.y - 10, 10, 20);
           } else {
-            ctx.fillRect(this.x + 18, this.y + 18, 10, 16); // Asa para Baixo
+            ctx.fillRect(this.x + 18, this.y + 18, 10, 16);
           }
         }
       }
     }
 
-    // --- ARTE DA TELA DE INÍCIO: DINO E O METEORO ---
+    // --- ARTE DA TELA DE INÍCIO ---
     function drawStartBackground() {
       ctx.strokeStyle = isDarkMode ? '#e8eaed' : '#535353';
       ctx.lineWidth = 2;
@@ -407,14 +489,13 @@
       ctx.lineTo(canvas.width, groundY);
       ctx.stroke();
 
-      // Dino parado no canto esquerdo
       ctx.fillStyle = isDarkMode ? '#e8eaed' : '#535353';
       const dx = canvas.width * 0.15, dy = groundY - 47;
       ctx.fillRect(dx + 12, dy, 22, 25);     
       ctx.fillRect(dx + 20, dy - 16, 20, 20); 
       ctx.fillRect(dx + 30, dy - 22, 12, 10); 
       
-      ctx.fillStyle = isDarkMode ? '#202124' : '#ffffff';
+      ctx.fillStyle = isDarkMode ? '#121316' : '#ffffff';
       ctx.fillRect(dx + 34, dy - 18, 4, 4);
       ctx.fillStyle = isDarkMode ? '#e8eaed' : '#535353';
 
@@ -423,7 +504,6 @@
       ctx.fillRect(dx + 16, dy + 25, 6, 14); 
       ctx.fillRect(dx + 28, dy + 25, 6, 14); 
 
-      // METEORO
       const meteorX = canvas.width * 0.75 + Math.sin(frameCount * 0.05) * 6;
       const meteorY = canvas.height * 0.2 + Math.cos(frameCount * 0.05) * 4;
 
@@ -451,20 +531,54 @@
       ctx.fillRect(meteorX + 22, meteorY + 24, 8, 8);
     }
 
-    // --- RENDERIZAR CENÁRIO DO JOGO ---
+    // --- RENDERIZAR CEU E CICLO DIA/NOITE ---
     function drawEnvironment() {
       const mainColor = isDarkMode ? '#e8eaed' : '#535353';
 
+      // Progresso no ciclo (0.0 a 1.0)
+      const cycleProgress = (dayNightTimer % CYCLE_DURATION) / CYCLE_DURATION;
+      const angle = cycleProgress * Math.PI; // Arco de 0 a PI
+
+      const celestialX = canvas.width * cycleProgress;
+      const celestialY = (canvas.height * 0.6) - Math.sin(angle) * (canvas.height * 0.45);
+
       if (isDarkMode) {
+        // DESENHAR LUA
+        ctx.fillStyle = '#f1f2f6';
+        ctx.beginPath();
+        ctx.arc(celestialX, celestialY, 28, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Crateras
+        ctx.fillStyle = '#ced6e0';
+        ctx.beginPath();
+        ctx.arc(celestialX - 8, celestialY - 6, 6, 0, Math.PI * 2);
+        ctx.arc(celestialX + 10, celestialY + 8, 8, 0, Math.PI * 2);
+        ctx.arc(celestialX + 4, celestialY - 10, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Estrelas
         ctx.fillStyle = '#ffffff';
         stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
+      } else {
+        // DESENHAR SOL
+        ctx.fillStyle = '#f1c40f';
+        ctx.beginPath();
+        ctx.arc(celestialX, celestialY, 32, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(241, 196, 15, 0.2)';
+        ctx.beginPath();
+        ctx.arc(celestialX, celestialY, 42, 0, Math.PI * 2);
+        ctx.fill();
       }
 
+      // Nuvens
       clouds.forEach(cloud => {
         if (gameStarted && !gameOver) cloud.x -= cloud.speed;
         if (cloud.x < -60) cloud.x = canvas.width + 20;
 
-        ctx.fillStyle = isDarkMode ? '#3c4043' : '#d3d3d3';
+        ctx.fillStyle = isDarkMode ? '#2c3e50' : '#d3d3d3';
         ctx.fillRect(cloud.x, cloud.y, 50, 12);
         ctx.fillRect(cloud.x + 12, cloud.y - 10, 26, 10);
       });
@@ -497,15 +611,30 @@
       if (!gameStarted) {
         drawStartBackground();
       } else {
+        if (!gameOver) {
+          dayNightTimer++;
+
+          // Alterna Dia / Noite a cada 30 segundos (1800 frames)
+          if (dayNightTimer % CYCLE_DURATION === 0) {
+            isDarkMode = !isDarkMode;
+            document.body.classList.toggle('dark-mode', isDarkMode);
+          }
+        }
+
         drawEnvironment();
 
         if (!gameOver) {
           score += 0.15;
           speed += 0.0008;
 
-          if (Math.floor(score) % 500 === 0 && Math.floor(score) > 0) {
-            isDarkMode = Math.floor(score / 500) % 2 === 1;
-            document.body.classList.toggle('dark-mode', isDarkMode);
+          // LÓGICA DE CHANCE DA ARMA A CADA 100 PONTOS
+          const currentScoreCheck = Math.floor(score / 100);
+          if (currentScoreCheck > lastScoreCheck) {
+            lastScoreCheck = currentScoreCheck;
+            if (Math.random() < 0.15) { // 15% de chance
+              const itemType = hasGun ? 'ammo' : 'gun';
+              items.push(new Item(itemType));
+            }
           }
 
           spawnTimer++;
@@ -516,18 +645,77 @@
             }
           }
 
+          // Atualizar partículas
           for (let i = particles.length - 1; i >= 0; i--) {
             particles[i].update();
             particles[i].draw();
             if (particles[i].life <= 0) particles.splice(i, 1);
           }
 
+          // Atualizar ITENS
+          for (let i = items.length - 1; i >= 0; i--) {
+            const item = items[i];
+            item.update();
+            item.draw();
+
+            // Colisão Dino com Item
+            if (
+              dino.x < item.x + item.width &&
+              dino.x + dino.width > item.x &&
+              dino.y < item.y + item.height &&
+              dino.y + dino.height > item.y
+            ) {
+              if (item.type === 'gun') {
+                hasGun = true;
+                ammo = 10;
+              } else {
+                ammo += 10;
+              }
+              playBeep(600, 'sine', 0.1);
+              items.splice(i, 1);
+            } else if (item.x + item.width < 0) {
+              items.splice(i, 1);
+            }
+          }
+
+          // Atualizar PROJÉTEIS (TIROS)
+          for (let i = bullets.length - 1; i >= 0; i--) {
+            const b = bullets[i];
+            b.update();
+            b.draw();
+
+            // Colisão Tiro com Obstáculo
+            for (let j = obstacles.length - 1; j >= 0; j--) {
+              const o = obstacles[j];
+              if (
+                b.x < o.x + o.width &&
+                b.x + b.width > o.x &&
+                b.y < o.y + o.height &&
+                b.y + b.height > o.y
+              ) {
+                // Efeito visual de explosão
+                for (let k = 0; k < 8; k++) {
+                  particles.push(new Particle(o.x + o.width / 2, o.y + o.height / 2, '#e74c3c'));
+                }
+                playBeep(200, 'square', 0.1);
+                obstacles.splice(j, 1);
+                bullets.splice(i, 1);
+                break;
+              }
+            }
+
+            if (b && b.x > canvas.width) {
+              bullets.splice(i, 1);
+            }
+          }
+
+          // Atualizar OBSTÁCULOS
           for (let i = obstacles.length - 1; i >= 0; i--) {
             const o = obstacles[i];
             o.update();
             o.draw();
 
-            const padding = 5;
+            const padding = 6;
             if (
               dino.x + padding < o.x + o.width &&
               dino.x + dino.width - padding > o.x &&
@@ -556,15 +744,23 @@
     function drawUI() {
       ctx.fillStyle = isDarkMode ? '#e8eaed' : '#535353';
       ctx.font = '20px "Courier New"';
-      ctx.textAlign = 'right';
       
+      // Pontuação
+      ctx.textAlign = 'right';
       const currentFormatted = Math.floor(score).toString().padStart(5, '0');
       const highFormatted = Math.floor(highScore).toString().padStart(5, '0');
-      
       ctx.fillText(`HI ${highFormatted}  ${currentFormatted}`, canvas.width - 30, 40);
+
+      // Munição e Arma
+      if (hasGun || ammo > 0) {
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillText(`MUNICIÇÃO: ${ammo}`, 30, 40);
+      }
 
       ctx.textAlign = 'center';
       if (gameOver) {
+        ctx.fillStyle = isDarkMode ? '#e8eaed' : '#535353';
         ctx.font = 'bold 28px "Courier New"';
         ctx.fillText("G A M E   O V E R", canvas.width / 2, canvas.height / 2 - 20);
         ctx.font = '16px "Courier New"';
@@ -586,8 +782,19 @@
       startScreen.style.display = 'none';
       score = 0;
       speed = 7;
+      lastScoreCheck = 0;
+      dayNightTimer = 0;
+      isDarkMode = false;
+      document.body.classList.remove('dark-mode');
+      
+      hasGun = false;
+      ammo = 0;
+      
       obstacles.length = 0;
       particles.length = 0;
+      bullets.length = 0;
+      items.length = 0;
+
       gameOver = false;
       gameStarted = true;
       dino.y = dino.groundY;
@@ -618,6 +825,10 @@
       if (e.code === 'ArrowDown') {
         e.preventDefault();
         keys.down = true;
+      }
+      if (e.code === 'KeyA' || e.code === 'ControlLeft' || e.code === 'ControlRight') {
+        e.preventDefault();
+        dino.shoot();
       }
     });
 
