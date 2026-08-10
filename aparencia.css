@@ -1,1 +1,175 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #70a1ff;
+  font-family: 'Courier New', Courier, monospace;
+  transition: background-color 2s ease;
+  user-select: none;
+}
+
+body.dark-mode {
+  background-color: #0b0c10;
+  color: #fff;
+}
+
+#game-wrapper {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+#gameCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* --- OVERLAYS (TELAS INICIAL E GAME OVER) --- */
+.overlay-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 15, 25, 0.85);
+  backdrop-filter: blur(4px);
+  z-index: 10;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.overlay-screen.hidden {
+  display: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.overlay-screen h1 {
+  font-size: 42px;
+  color: #f1c40f;
+  text-shadow: 3px 3px 0 #c0392b, 6px 6px 0 #000;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  text-align: center;
+}
+
+/* TELA DE GAME OVER ESTILIZADA */
+#game-over-screen h1 {
+  color: #e74c3c;
+  text-shadow: 3px 3px 0 #962d22, 6px 6px 0 #000;
+  font-size: 50px;
+  animation: pulse 1.5s infinite alternate;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.05); }
+}
+
+.stats-board {
+  background: rgba(0, 0, 0, 0.6);
+  border: 3px solid #f39c12;
+  border-radius: 12px;
+  padding: 20px 40px;
+  margin-bottom: 25px;
+  text-align: center;
+  box-shadow: 0 0 15px rgba(243, 156, 18, 0.4);
+}
+
+.stats-board p {
+  font-size: 18px;
+  color: #ecf0f1;
+  margin: 8px 0;
+  font-weight: bold;
+}
+
+.stats-board span {
+  color: #f1c40f;
+}
+
+.btn-action {
+  padding: 16px 45px;
+  font-size: 22px;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: bold;
+  color: #fff;
+  background: linear-gradient(180deg, #2ecc71, #27ae60);
+  border: 4px solid #1e8449;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 6px 0 #145a32, 0 10px 15px rgba(0,0,0,0.5);
+  transition: all 0.1s ease;
+  text-transform: uppercase;
+}
+
+.btn-action:hover {
+  background: linear-gradient(180deg, #2edf78, #2ecc71);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 #145a32, 0 12px 20px rgba(0,0,0,0.6);
+}
+
+.btn-action:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #145a32, 0 5px 10px rgba(0,0,0,0.4);
+}
+
+#start-btn {
+  background: linear-gradient(180deg, #e74c3c, #c0392b);
+  border-color: #962d22;
+  box-shadow: 0 6px 0 #641e16;
+}
+
+#start-btn:hover {
+  background: linear-gradient(180deg, #ff5e4d, #e74c3c);
+  box-shadow: 0 8px 0 #641e16;
+}
+
+.instructions {
+  margin-top: 20px;
+  font-size: 15px;
+  color: #bdc3c7;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* BOTÃO QTE ALEATÓRIO NO BOSS */
+#qte-container {
+  position: absolute;
+  display: none;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+}
+
+#qte-btn {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: #e74c3c;
+  border: 4px solid #fff;
+  color: #fff;
+  font-size: 32px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(231, 76, 60, 0.8);
+  animation: qtePulse 0.5s infinite alternate;
+}
+
+@keyframes qtePulse {
+  0% { transform: scale(0.9); }
+  100% { transform: scale(1.1); }
+}
