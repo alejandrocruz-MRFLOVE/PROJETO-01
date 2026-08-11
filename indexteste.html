@@ -1,1 +1,1140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dino Game - 3D Perspective Edition</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #70a1ff;
+      font-family: 'Courier New', Courier, monospace;
+      transition: background-color 2s ease;
+      user-select: none;
+    }
+
+    body.dark-mode {
+      background-color: #0b0c10;
+      color: #fff;
+    }
+
+    #game-wrapper {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    /* --- OVERLAYS --- */
+    .overlay-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 15, 25, 0.85);
+      backdrop-filter: blur(4px);
+      z-index: 10;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+
+    .overlay-screen.hidden {
+      display: none;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .overlay-screen h1 {
+      font-size: 42px;
+      color: #f1c40f;
+      text-shadow: 3px 3px 0 #c0392b, 6px 6px 0 #000;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      text-align: center;
+    }
+
+    #game-over-screen h1 {
+      color: #e74c3c;
+      text-shadow: 3px 3px 0 #962d22, 6px 6px 0 #000;
+      font-size: 50px;
+      animation: pulse 1.5s infinite alternate;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      100% { transform: scale(1.05); }
+    }
+
+    .stats-board {
+      background: rgba(0, 0, 0, 0.6);
+      border: 3px solid #f39c12;
+      border-radius: 12px;
+      padding: 20px 40px;
+      margin-bottom: 25px;
+      text-align: center;
+      box-shadow: 0 0 15px rgba(243, 156, 18, 0.4);
+    }
+
+    .stats-board p {
+      font-size: 18px;
+      color: #ecf0f1;
+      margin: 8px 0;
+      font-weight: bold;
+    }
+
+    .stats-board span {
+      color: #f1c40f;
+    }
+
+    .btn-action {
+      padding: 16px 45px;
+      font-size: 22px;
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: bold;
+      color: #fff;
+      background: linear-gradient(180deg, #2ecc71, #27ae60);
+      border: 4px solid #1e8449;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 6px 0 #145a32, 0 10px 15px rgba(0,0,0,0.5);
+      transition: all 0.1s ease;
+      text-transform: uppercase;
+    }
+
+    .btn-action:hover {
+      background: linear-gradient(180deg, #2edf78, #2ecc71);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 0 #145a32, 0 12px 20px rgba(0,0,0,0.6);
+    }
+
+    .btn-action:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #145a32, 0 5px 10px rgba(0,0,0,0.4);
+    }
+
+    #start-btn {
+      background: linear-gradient(180deg, #e74c3c, #c0392b);
+      border-color: #962d22;
+      box-shadow: 0 6px 0 #641e16;
+    }
+
+    .instructions {
+      margin-top: 20px;
+      font-size: 15px;
+      color: #bdc3c7;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .badge-3d {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.75);
+      color: #f1c40f;
+      padding: 10px 18px;
+      border-radius: 8px;
+      border: 2px solid #f1c40f;
+      font-weight: bold;
+      font-size: 15px;
+      z-index: 5;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="game-wrapper">
+    <div id="start-screen" class="overlay-screen">
+      <h1>Dino: O Último Salto 3D</h1>
+      <button id="start-btn" class="btn-action">COMEÇAR</button>
+      <p class="instructions">
+        <strong>Espaço / Seta Cima</strong>: Pular / Pulo Duplo<br>
+        <strong>Seta Baixo</strong>: Abaixar | <strong>A / Ctrl</strong>: Atirar<br>
+        <strong>Q</strong>: Alternar Visão 2D / 3D (Câmera do Dino)
+      </p>
+    </div>
+
+    <div id="game-over-screen" class="overlay-screen hidden">
+      <h1>G A M E   O V E R</h1>
+      <div class="stats-board">
+        <p>PONTUAÇÃO: <span id="final-score">00000</span></p>
+        <p>RECORDE: <span id="final-highscore">00000</span></p>
+        <p>MUNIÇÃO RESTANTE: <span id="final-ammo">0</span></p>
+      </div>
+      <button id="restart-btn" class="btn-action">RENASCER ⚡</button>
+    </div>
+
+    <div class="badge-3d">Pressione 'Q' para Visão 3D / 2D</div>
+    <canvas id="gameCanvas"></canvas>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const startBtn = document.getElementById('start-btn');
+    const restartBtn = document.getElementById('restart-btn');
+
+    // --- VARIÁVEL DE CAMÊRA 3D (TRANSIÇÃO SUAVE 0 = 2D, 1 = 3D) ---
+    let targetView3D = 0; // Target State (0 ou 1)
+    let currentView3D = 0; // Factor de interpolação (0.0 até 1.0)
+
+    let groundY = 0;
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      groundY = canvas.height - 100;
+      if (dino) dino.groundY = groundY - dino.normalHeight;
+    }
+
+    // --- SINTETIZADOR DE SOM ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+
+      if (type === 'jump') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(600, now + 0.12);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+      } 
+      else if (type === 'doubleJump') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 0.15);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      }
+      else if (type === 'shoot') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(900, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      } 
+      else if (type === 'pickup') {
+        const notes = [300, 450, 600];
+        notes.forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.05, now + idx * 0.04);
+          gain.gain.linearRampToValueAtTime(0.01, now + idx * 0.04 + 0.05);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + idx * 0.04);
+          osc.stop(now + idx * 0.04 + 0.05);
+        });
+      } 
+      else if (type === 'explode') {
+        const bufferSize = audioCtx.sampleRate * 0.2;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        noise.connect(gain);
+        gain.connect(audioCtx.destination);
+        noise.start(now);
+      } 
+      else if (type === 'gameover') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.linearRampToValueAtTime(80, now + 0.4);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      }
+      else if (type === 'switch3d') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.linearRampToValueAtTime(900, now + 0.25);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      }
+    }
+
+    // --- ESTADOS DO JOGO ---
+    let gameStarted = false;
+    let gameOver = false;
+    let score = 0;
+    let highScore = localStorage.getItem('dino_highscore_full') || 0;
+    let speed = 7;
+    let frameCount = 0;
+    let isDarkMode = false;
+    let lastScoreCheck = 0;
+
+    let hasGun = false;
+    let ammo = 0;
+    const bullets = [];
+    const items = [];
+
+    let dayNightTimer = 0;
+    const CYCLE_DURATION = 1800;
+
+    const keys = { up: false, down: false };
+
+    // --- PROJEÇÃO DE PERSPECTIVA 3D ---
+    // Mapeia coordenadas 2D (x = distancia horizontal, y = altura) para a projeção 3D do ponto de vista do Dino.
+    function get3DProjection(x2d, y2d, width2d, height2d) {
+      if (currentView3D < 0.001) {
+        return { x: x2d, y: y2d, w: width2d, h: height2d, scale: 1 };
+      }
+
+      // No modo 3D:
+      // Distância no eixo Z é a distância do objeto até o Dino (x2d - dino.x)
+      const distZ = Math.max(10, x2d - dino.x + 100); 
+      const focalLength = 350;
+      const scale = Math.min(3.0, focalLength / distZ);
+
+      const horizonY = canvas.height * 0.45;
+      const centerX = canvas.width * 0.5;
+
+      // Posição x3d no chão acelerando para o centro no horizonte
+      const x3d = centerX + (x2d - (dino.x + 120)) * scale * 0.6;
+      
+      // Posição y3d calculada com base na altura do chão até a elevação do pulo
+      const groundY3D = horizonY + (groundY - horizonY) * scale;
+      const heightOffset = (groundY - y2d) * scale;
+      const y3d = groundY3D - heightOffset;
+
+      const w3d = width2d * scale;
+      const h3d = height2d * scale;
+
+      // Interpolação suave entre 2D puro e 3D puro
+      return {
+        x: x2d * (1 - currentView3D) + x3d * currentView3D,
+        y: y2d * (1 - currentView3D) + (y3d - h3d) * currentView3D,
+        w: width2d * (1 - currentView3D) + w3d * currentView3D,
+        h: height2d * (1 - currentView3D) + h3d * currentView3D,
+        scale: 1 * (1 - currentView3D) + scale * currentView3D
+      };
+    }
+
+    // --- PARTÍCULAS / FUMAÇA ---
+    const particles = [];
+    class Particle {
+      constructor(x, y, color, type = 'dust') {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+
+        if (type === 'smoke') {
+          this.size = Math.random() * 8 + 4;
+          this.vx = -speed * 0.4 + (Math.random() - 0.5) * 2;
+          this.vy = Math.random() * 1.5 + 0.5;
+          this.life = 35;
+          this.color = color || 'rgba(180, 180, 180, 0.7)';
+        } else {
+          this.size = Math.random() * 5 + 2;
+          this.vx = -speed * 0.3 + (Math.random() - 0.5) * 3;
+          this.vy = (Math.random() - 0.5) * 3;
+          this.life = 25;
+          this.color = color;
+        }
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life--;
+        if (this.type === 'smoke') {
+          this.size += 0.2;
+        }
+      }
+      draw() {
+        const proj = get3DProjection(this.x, this.y, this.size, this.size);
+        if (this.type === 'smoke') {
+          const alpha = this.life / 35;
+          ctx.fillStyle = `rgba(180, 180, 180, ${alpha * 0.6})`;
+          ctx.beginPath();
+          ctx.arc(Math.floor(proj.x), Math.floor(proj.y), Math.max(1, proj.w / 2), 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = this.color || (isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(83,83,83,0.4)');
+          ctx.fillRect(Math.floor(proj.x), Math.floor(proj.y), Math.max(1, proj.w), Math.max(1, proj.h));
+        }
+      }
+    }
+
+    // --- NUVENS E ESTRELAS ---
+    const clouds = [];
+    const stars = [];
+
+    function initBackgroundElements() {
+      clouds.length = 0;
+      stars.length = 0;
+      for (let i = 0; i < 6; i++) {
+        clouds.push({
+          x: Math.random() * window.innerWidth,
+          y: Math.random() * (window.innerHeight * 0.35) + 30,
+          speed: Math.random() * 0.4 + 0.3,
+          scale: Math.random() * 0.5 + 0.8
+        });
+      }
+      for (let i = 0; i < 40; i++) {
+        stars.push({
+          x: Math.random() * window.innerWidth,
+          y: Math.random() * (window.innerHeight * 0.5) + 10,
+          size: Math.random() > 0.5 ? 2 : 3,
+          alpha: Math.random()
+        });
+      }
+    }
+
+    // --- PROJÉTEIS (TIROS) ---
+    class Bullet {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.speed = 18;
+        this.width = 14;
+        this.height = 5;
+      }
+      update() {
+        this.x += this.speed;
+      }
+      draw() {
+        const proj = get3DProjection(this.x, this.y, this.width, this.height);
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillRect(proj.x, proj.y, proj.w, proj.h);
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillRect(proj.x - proj.w * 0.3, proj.y + proj.h * 0.2, proj.w * 0.3, proj.h * 0.6);
+      }
+    }
+
+    // --- ITENS (ARMA / MUNIÇÃO) ---
+    class Item {
+      constructor(type) {
+        this.x = canvas.width + 100;
+        this.type = type;
+        this.width = 26;
+        this.height = 26;
+        this.y = groundY - 32;
+        this.bounce = 0;
+      }
+      update() {
+        this.x -= speed;
+        this.bounce += 0.1;
+      }
+      draw() {
+        const floatY = this.y + Math.sin(this.bounce) * 3;
+        const proj = get3DProjection(this.x, floatY, this.width, this.height);
+
+        if (this.type === 'gun') {
+          ctx.fillStyle = '#2980b9';
+          ctx.fillRect(proj.x, proj.y, proj.w, proj.h);
+          ctx.fillStyle = '#3498db';
+          ctx.fillRect(proj.x + proj.w*0.1, proj.y + proj.h*0.1, proj.w*0.8, proj.h*0.8);
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(proj.x + proj.w*0.2, proj.y + proj.h*0.4, proj.w*0.5, proj.h*0.2);
+        } else {
+          ctx.fillStyle = '#d35400';
+          ctx.fillRect(proj.x, proj.y, proj.w, proj.h);
+          ctx.fillStyle = '#f39c12';
+          ctx.fillRect(proj.x + proj.w*0.1, proj.y + proj.h*0.1, proj.w*0.8, proj.h*0.8);
+          ctx.fillStyle = '#fff';
+          ctx.font = `bold ${Math.max(8, Math.floor(10 * proj.scale))}px monospace`;
+          ctx.fillText('+AM', proj.x + proj.w*0.15, proj.y + proj.h*0.65);
+        }
+      }
+    }
+
+    // --- DINOSSAURO ---
+    const dino = {
+      x: 80,
+      groundY: 0,
+      y: 0,
+      normalWidth: 44,
+      normalHeight: 47,
+      duckWidth: 59,
+      duckHeight: 30,
+      width: 44,
+      height: 47,
+      velocityY: 0,
+      gravity: 0.75,
+      jumpForce: -13.5,
+      isGrounded: true,
+      isDucking: false,
+      legFrame: 0,
+      jumpsLeft: 2,
+      rotation: 0,
+      isRotating: false,
+
+      shoot() {
+        if (hasGun && ammo > 0 && gameStarted && !gameOver) {
+          ammo--;
+          bullets.push(new Bullet(this.x + this.width, this.y + (this.isDucking ? 10 : 16)));
+          playSound('shoot');
+          if (ammo <= 0) {
+            hasGun = false;
+          }
+        }
+      },
+
+      jump() {
+        if (this.isGrounded && !this.isDucking) {
+          this.velocityY = this.jumpForce;
+          this.isGrounded = false;
+          this.jumpsLeft = 1;
+          playSound('jump');
+          for (let i = 0; i < 8; i++) {
+            particles.push(new Particle(this.x + 10, this.groundY + 40));
+          }
+        } 
+        else if (!this.isGrounded && this.jumpsLeft > 0) {
+          this.velocityY = this.jumpForce * 0.9;
+          this.jumpsLeft = 0;
+          this.isRotating = true;
+          this.rotation = 0;
+          playSound('doubleJump');
+
+          for (let i = 0; i < 14; i++) {
+            particles.push(new Particle(this.x + this.width / 2, this.y + this.height, null, 'smoke'));
+          }
+        }
+      },
+
+      update() {
+        if (keys.down && this.isGrounded) {
+          this.isDucking = true;
+          this.width = this.duckWidth;
+          this.height = this.duckHeight;
+          this.y = this.groundY + 17;
+        } else {
+          this.isDucking = false;
+          this.width = this.normalWidth;
+          this.height = this.normalHeight;
+          if (this.isGrounded) this.y = this.groundY;
+        }
+
+        if (keys.down && !this.isGrounded) {
+          this.velocityY += this.gravity * 1.8;
+        } else {
+          this.velocityY += this.gravity;
+        }
+
+        this.y += this.velocityY;
+
+        if (this.isRotating) {
+          this.rotation += 22;
+          if (this.rotation >= 360) {
+            this.rotation = 0;
+            this.isRotating = false;
+          }
+        }
+
+        if (this.y >= (this.isDucking ? this.groundY + 17 : this.groundY)) {
+          this.y = this.isDucking ? this.groundY + 17 : this.groundY;
+          this.velocityY = 0;
+          this.isGrounded = true;
+          this.jumpsLeft = 2;
+          this.isRotating = false;
+          this.rotation = 0;
+        }
+
+        if (frameCount % 5 === 0) {
+          this.legFrame = this.legFrame === 0 ? 1 : 0;
+        }
+
+        if (this.isGrounded && gameStarted && !gameOver && frameCount % 4 === 0) {
+          particles.push(new Particle(this.x, this.groundY + 42));
+        }
+      },
+
+      draw() {
+        // No modo 3D, posicionamos o Dino na visão de 3ª pessoa nas costas dele
+        let dinoRenderX = this.x;
+        let dinoRenderY = this.y;
+        
+        if (currentView3D > 0) {
+          // Ajusta a posição 3D do dino para ficar centralizado embaixo na visão 3D
+          dinoRenderX = this.x * (1 - currentView3D) + (canvas.width * 0.5 - 22) * currentView3D;
+        }
+
+        const proj = get3DProjection(dinoRenderX, dinoRenderY, this.width, this.height);
+
+        ctx.save();
+
+        if (this.isRotating) {
+          ctx.translate(proj.x + proj.w / 2, proj.y + proj.h / 2);
+          ctx.rotate((this.rotation * Math.PI) / 180);
+          ctx.translate(-(proj.x + proj.w / 2), -(proj.y + proj.h / 2));
+        }
+
+        const c = isDarkMode ? '#f5f6fa' : '#2f3542';
+        ctx.fillStyle = c;
+
+        // Se estiver em modo 3D (costas do dino)
+        if (currentView3D > 0.5) {
+          // Corpo 3D visto por trás
+          ctx.fillRect(proj.x + proj.w * 0.2, proj.y + proj.h * 0.3, proj.w * 0.6, proj.h * 0.5); 
+          // Cabeça 3D
+          ctx.fillRect(proj.x + proj.w * 0.3, proj.y, proj.w * 0.4, proj.h * 0.35); 
+          // Olhos nas laterais
+          ctx.fillStyle = isDarkMode ? '#0b0c10' : '#ffffff';
+          ctx.fillRect(proj.x + proj.w * 0.25, proj.y + proj.h * 0.08, proj.w * 0.1, proj.h * 0.1);
+          ctx.fillRect(proj.x + proj.w * 0.65, proj.y + proj.h * 0.08, proj.w * 0.1, proj.h * 0.1);
+          ctx.fillStyle = c;
+
+          // Pernas correndo por trás
+          if (this.isGrounded && gameStarted && !gameOver) {
+            if (this.legFrame === 0) {
+              ctx.fillRect(proj.x + proj.w * 0.25, proj.y + proj.h * 0.8, proj.w * 0.15, proj.h * 0.25);
+              ctx.fillRect(proj.x + proj.w * 0.6, proj.y + proj.h * 0.75, proj.w * 0.15, proj.h * 0.15);
+            } else {
+              ctx.fillRect(proj.x + proj.w * 0.25, proj.y + proj.h * 0.75, proj.w * 0.15, proj.h * 0.15);
+              ctx.fillRect(proj.x + proj.w * 0.6, proj.y + proj.h * 0.8, proj.w * 0.15, proj.h * 0.25);
+            }
+          } else {
+            ctx.fillRect(proj.x + proj.w * 0.25, proj.y + proj.h * 0.8, proj.w * 0.15, proj.h * 0.2);
+            ctx.fillRect(proj.x + proj.w * 0.6, proj.y + proj.h * 0.8, proj.w * 0.15, proj.h * 0.2);
+          }
+
+          if (hasGun) {
+            ctx.fillStyle = '#2980b9';
+            ctx.fillRect(proj.x + proj.w * 0.7, proj.y + proj.h * 0.4, proj.w * 0.2, proj.h * 0.3);
+          }
+        } 
+        // Desenho Clássico 2D
+        else {
+          if (!this.isDucking) {
+            ctx.fillRect(proj.x + proj.w*0.27, proj.y, proj.w*0.5, proj.h*0.53);     
+            ctx.fillRect(proj.x + proj.w*0.45, proj.y - proj.h*0.25, proj.w*0.55, proj.h*0.34); 
+            ctx.fillRect(proj.x + proj.w*0.9, proj.y - proj.h*0.08, proj.w*0.18, proj.h*0.17);   
+            
+            ctx.fillStyle = isDarkMode ? '#0b0c10' : '#ffffff';
+            ctx.fillRect(proj.x + proj.w*0.77, proj.y - proj.h*0.19, proj.w*0.09, proj.h*0.09);
+            ctx.fillStyle = c;
+
+            ctx.fillRect(proj.x + proj.w*0.68, proj.y + proj.h*0.25, proj.w*0.18, proj.h*0.08);  
+            ctx.fillRect(proj.x, proj.y + proj.h*0.12, proj.w*0.27, proj.h*0.21);      
+            ctx.fillRect(proj.x - proj.w*0.09, proj.y + proj.h*0.08, proj.w*0.13, proj.h*0.13);
+
+            if (this.isGrounded && gameStarted && !gameOver) {
+              if (this.legFrame === 0) {
+                ctx.fillRect(proj.x + proj.w*0.36, proj.y + proj.h*0.53, proj.w*0.13, proj.h*0.3);
+                ctx.fillRect(proj.x + proj.w*0.63, proj.y + proj.h*0.53, proj.w*0.13, proj.h*0.13);
+              } else {
+                ctx.fillRect(proj.x + proj.w*0.36, proj.y + proj.h*0.53, proj.w*0.13, proj.h*0.13);
+                ctx.fillRect(proj.x + proj.w*0.63, proj.y + proj.h*0.53, proj.w*0.13, proj.h*0.3);
+              }
+            } else {
+              ctx.fillRect(proj.x + proj.w*0.36, proj.y + proj.h*0.53, proj.w*0.13, proj.h*0.21);
+              ctx.fillRect(proj.x + proj.w*0.59, proj.y + proj.h*0.53, proj.w*0.13, proj.h*0.21);
+            }
+
+            if (hasGun) {
+              ctx.fillStyle = '#2980b9';
+              ctx.fillRect(proj.x + proj.w*0.68, proj.y + proj.h*0.12, proj.w*0.4, proj.h*0.13);
+              ctx.fillStyle = '#e74c3c';
+              ctx.fillRect(proj.x + proj.w*1.04, proj.y + proj.h*0.14, proj.w*0.09, proj.h*0.04);
+            }
+          } else {
+            ctx.fillRect(proj.x + proj.w*0.17, proj.y, proj.w*0.61, proj.h*0.6);     
+            ctx.fillRect(proj.x + proj.w*0.68, proj.y + proj.h*0.06, proj.w*0.3, proj.h*0.4); 
+            ctx.fillRect(proj.x + proj.w*0.91, proj.y + proj.h*0.2, proj.w*0.1, proj.h*0.2);   
+            
+            ctx.fillStyle = isDarkMode ? '#0b0c10' : '#ffffff';
+            ctx.fillRect(proj.x + proj.w*0.84, proj.y + proj.h*0.13, proj.w*0.05, proj.h*0.1);
+            ctx.fillStyle = c;
+
+            ctx.fillRect(proj.x, proj.y + proj.h*0.06, proj.w*0.17, proj.h*0.26);        
+
+            if (this.legFrame === 0) {
+              ctx.fillRect(proj.x + proj.w*0.27, proj.y + proj.h*0.6, proj.w*0.1, proj.h*0.33);
+              ctx.fillRect(proj.x + proj.w*0.54, proj.y + proj.h*0.6, proj.w*0.1, proj.h*0.13);
+            } else {
+              ctx.fillRect(proj.x + proj.w*0.27, proj.y + proj.h*0.6, proj.w*0.1, proj.h*0.13);
+              ctx.fillRect(proj.x + proj.w*0.54, proj.y + proj.h*0.6, proj.w*0.1, proj.h*0.33);
+            }
+
+            if (hasGun) {
+              ctx.fillStyle = '#2980b9';
+              ctx.fillRect(proj.x + proj.w*0.74, proj.y + proj.h*0.26, proj.w*0.27, proj.h*0.16);
+            }
+          }
+        }
+
+        ctx.restore();
+      }
+    };
+
+    // --- OBSTÁCULOS ---
+    const obstacles = [];
+
+    class Obstacle {
+      constructor() {
+        this.x = canvas.width + 100;
+        const types = score > 150 ? [0, 1, 2, 3, 3] : [0, 1, 2];
+        this.type = types[Math.floor(Math.random() * types.length)];
+
+        if (this.type === 0) {
+          this.width = 22;
+          this.height = 42;
+          this.y = groundY - this.height;
+        } else if (this.type === 1) {
+          this.width = 44;
+          this.height = 42;
+          this.y = groundY - this.height;
+        } else if (this.type === 2) {
+          this.width = 30;
+          this.height = 56;
+          this.y = groundY - this.height;
+        } else if (this.type === 3) {
+          this.width = 46;
+          this.height = 32;
+          const heights = [groundY - 75, groundY - 48, groundY - 18];
+          this.y = heights[Math.floor(Math.random() * heights.length)];
+          this.wingFrame = 0;
+        }
+      }
+
+      update() {
+        this.x -= speed;
+        if (this.type === 3 && frameCount % 8 === 0) {
+          this.wingFrame = this.wingFrame === 0 ? 1 : 0;
+        }
+      }
+
+      draw() {
+        // Projeta as coordenadas 2D para a visão de perspectiva 3D
+        const proj = get3DProjection(this.x, this.y, this.width, this.height);
+
+        // Se o objeto estiver muito atrás da tela ou invisível, ignora
+        if (proj.w <= 0 || proj.h <= 0) return;
+
+        if (this.type < 3) {
+          ctx.fillStyle = isDarkMode ? '#2ed573' : '#27ae60';
+          ctx.fillRect(proj.x + proj.w*0.18, proj.y, proj.w*0.64, proj.h);
+          ctx.fillRect(proj.x, proj.y + proj.h*0.23, proj.w, proj.h*0.14);
+          ctx.fillRect(proj.x, proj.y + proj.h*0.09, proj.w*0.18, proj.h*0.28);
+          ctx.fillRect(proj.x + proj.w*0.82, proj.y + proj.h*0.14, proj.w*0.18, proj.h*0.33);
+
+          ctx.fillStyle = isDarkMode ? '#7bed9f' : '#2ecc71';
+          ctx.fillRect(proj.x + proj.w*0.27, proj.y, proj.w*0.13, proj.h);
+        } else {
+          const pColor = isDarkMode ? '#ff7f50' : '#ff6348';
+          ctx.fillStyle = pColor;
+          
+          ctx.fillRect(proj.x + proj.w*0.3, proj.y + proj.h*0.31, proj.w*0.52, proj.h*0.31);
+          ctx.fillRect(proj.x, proj.y + proj.h*0.25, proj.w*0.3, proj.h*0.25);        
+          ctx.fillRect(proj.x + proj.w*0.82, proj.y + proj.h*0.37, proj.w*0.17, proj.h*0.12);   
+
+          if (this.wingFrame === 0) {
+            ctx.fillRect(proj.x + proj.w*0.39, proj.y - proj.h*0.37, proj.w*0.21, proj.h*0.68);
+          } else {
+            ctx.fillRect(proj.x + proj.w*0.39, proj.y + proj.h*0.56, proj.w*0.21, proj.h*0.56);
+          }
+        }
+      }
+    }
+
+    // --- CENÁRIO E DIA/NOITE COM EFEITO TRIDIMENSIONAL ---
+    function drawEnvironment() {
+      document.body.style.backgroundColor = isDarkMode ? '#0b0c10' : '#70a1ff';
+
+      const cycleProgress = (dayNightTimer % CYCLE_DURATION) / CYCLE_DURATION;
+      const angle = cycleProgress * Math.PI;
+
+      const celestialX = canvas.width * cycleProgress;
+      const celestialY = (canvas.height * 0.55) - Math.sin(angle) * (canvas.height * 0.42);
+
+      if (isDarkMode) {
+        ctx.fillStyle = '#f1f2f6';
+        ctx.beginPath();
+        ctx.arc(celestialX, celestialY, 30, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#dcdde1';
+        ctx.beginPath();
+        ctx.arc(celestialX - 8, celestialY - 6, 6, 0, Math.PI * 2);
+        ctx.arc(celestialX + 10, celestialY + 8, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        stars.forEach(s => {
+          s.alpha += (Math.random() - 0.5) * 0.05;
+          s.alpha = Math.max(0.2, Math.min(1, s.alpha));
+          ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha})`;
+          ctx.fillRect(s.x, s.y, s.size, s.size);
+        });
+      } else {
+        ctx.fillStyle = '#f1c40f';
+        ctx.beginPath();
+        ctx.arc(celestialX, celestialY, 34, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(241, 196, 15, 0.25)';
+        ctx.beginPath();
+        ctx.arc(celestialX, celestialY, 48, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      clouds.forEach(cloud => {
+        if (gameStarted && !gameOver) cloud.x -= cloud.speed;
+        if (cloud.x < -100) cloud.x = canvas.width + 40;
+
+        ctx.fillStyle = isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.75)';
+        const cx = cloud.x, cy = cloud.y, s = cloud.scale;
+        ctx.fillRect(cx, cy, 60 * s, 16 * s);
+        ctx.fillRect(cx + 15 * s, cy - 12 * s, 30 * s, 12 * s);
+      });
+
+      const mainColor = isDarkMode ? '#e8eaed' : '#2f3542';
+
+      // Desenho do Chão (Transição 2D / 3D Pista em Perspectiva)
+      if (currentView3D > 0.001) {
+        const horizonY = canvas.height * 0.45;
+        const horizonYInterp = groundY * (1 - currentView3D) + horizonY * currentView3D;
+
+        // Pista 3D convergindo para o horizonte
+        ctx.fillStyle = isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+        ctx.beginPath();
+        ctx.moveTo(canvas.width * 0.5, horizonYInterp);
+        ctx.lineTo(canvas.width, canvas.height);
+        ctx.lineTo(0, canvas.height);
+        ctx.closePath();
+        ctx.fill();
+
+        // Linha do Horizonte
+        ctx.strokeStyle = mainColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, horizonYInterp);
+        ctx.lineTo(canvas.width, horizonYInterp);
+        ctx.stroke();
+
+        // Linhas de perspectiva das bordas da pista
+        ctx.beginPath();
+        ctx.moveTo(canvas.width * 0.5, horizonYInterp);
+        ctx.lineTo(0, canvas.height);
+        ctx.moveTo(canvas.width * 0.5, horizonYInterp);
+        ctx.lineTo(canvas.width, canvas.height);
+        ctx.stroke();
+      } else {
+        // Chão 2D Clássico
+        ctx.strokeStyle = mainColor;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, groundY);
+        ctx.lineTo(canvas.width, groundY);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = mainColor;
+      for (let i = 0; i < canvas.width; i += 40) {
+        const bumpX = (i - (frameCount * speed * 0.5)) % canvas.width;
+        const realX = bumpX < 0 ? canvas.width + bumpX : bumpX;
+        const proj = get3DProjection(realX, groundY + 6, 6, 2);
+        ctx.fillRect(proj.x, proj.y, Math.max(1, proj.w), Math.max(1, proj.h));
+      }
+    }
+
+    // --- LOOP PRINCIPAL DO JOGO ---
+    let spawnTimer = 0;
+
+    function gameLoop() {
+      frameCount++;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Interpolação suave do modo 3D
+      currentView3D += (targetView3D - currentView3D) * 0.08;
+
+      if (gameStarted) {
+        if (!gameOver) {
+          dayNightTimer++;
+          if (dayNightTimer % CYCLE_DURATION === 0) {
+            isDarkMode = !isDarkMode;
+            document.body.classList.toggle('dark-mode', isDarkMode);
+          }
+        }
+
+        drawEnvironment();
+
+        if (!gameOver) {
+          score += 0.15;
+          speed += 0.0008;
+
+          const currentScoreCheck = Math.floor(score / 100);
+          if (currentScoreCheck > lastScoreCheck) {
+            lastScoreCheck = currentScoreCheck;
+            if (Math.random() < 0.15) {
+              items.push(new Item(hasGun ? 'ammo' : 'gun'));
+            }
+          }
+
+          spawnTimer++;
+          if (spawnTimer > Math.max(38, 85 - speed * 2.5)) {
+            if (Math.random() < 0.65) {
+              obstacles.push(new Obstacle());
+              spawnTimer = 0;
+            }
+          }
+
+          // Partículas
+          for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update();
+            particles[i].draw();
+            if (particles[i].life <= 0) particles.splice(i, 1);
+          }
+
+          // Itens
+          for (let i = items.length - 1; i >= 0; i--) {
+            const item = items[i];
+            item.update();
+            item.draw();
+
+            if (
+              dino.x < item.x + item.width &&
+              dino.x + dino.width > item.x &&
+              dino.y < item.y + item.height &&
+              dino.y + dino.height > item.y
+            ) {
+              if (item.type === 'gun') {
+                hasGun = true;
+                ammo = 10;
+              } else {
+                ammo += 10;
+              }
+              playSound('pickup');
+              items.splice(i, 1);
+            } else if (item.x + item.width < 0) {
+              items.splice(i, 1);
+            }
+          }
+
+          // Tiros
+          for (let i = bullets.length - 1; i >= 0; i--) {
+            const b = bullets[i];
+            b.update();
+            b.draw();
+
+            for (let j = obstacles.length - 1; j >= 0; j--) {
+              const o = obstacles[j];
+              if (
+                b.x < o.x + o.width &&
+                b.x + b.width > o.x &&
+                b.y < o.y + o.height &&
+                b.y + b.height > o.y
+              ) {
+                for (let k = 0; k < 12; k++) {
+                  particles.push(new Particle(o.x + o.width / 2, o.y + o.height / 2, '#e74c3c'));
+                }
+                playSound('explode');
+                obstacles.splice(j, 1);
+                bullets.splice(i, 1);
+                break;
+              }
+            }
+
+            if (b && b.x > canvas.width + 200) {
+              bullets.splice(i, 1);
+            }
+          }
+
+          // Ordenação dos obstáculos pela distância (Z-Buffer) para renderizar os mais distantes primeiro no modo 3D
+          obstacles.sort((a, b) => b.x - a.x);
+
+          // Obstáculos
+          for (let i = obstacles.length - 1; i >= 0; i--) {
+            const o = obstacles[i];
+            o.update();
+            o.draw();
+
+            const padding = 6;
+            if (
+              dino.x + padding < o.x + o.width &&
+              dino.x + dino.width - padding > o.x &&
+              dino.y + padding < o.y + o.height &&
+              dino.y + dino.height - padding > o.y
+            ) {
+              triggerGameOver();
+            }
+
+            if (o.x + o.width < -100) {
+              obstacles.splice(i, 1);
+            }
+          }
+
+          dino.update();
+        }
+
+        dino.draw();
+        drawUI();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // --- INTERFACE DE USUÁRIO DENTRO DO CANVAS ---
+    function drawUI() {
+      ctx.fillStyle = isDarkMode ? '#e8eaed' : '#2f3542';
+      ctx.font = 'bold 20px "Courier New"';
+      
+      ctx.textAlign = 'right';
+      const currentFormatted = Math.floor(score).toString().padStart(5, '0');
+      const highFormatted = Math.floor(highScore).toString().padStart(5, '0');
+      ctx.fillText(`HI ${highFormatted}  ${currentFormatted}`, canvas.width - 30, 40);
+
+      if (hasGun || ammo > 0) {
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillText(`MUNIÇÃO: ${ammo}`, 30, 40);
+      }
+    }
+
+    // --- GAME OVER ---
+    function triggerGameOver() {
+      gameOver = true;
+      playSound('gameover');
+
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('dino_highscore_full', highScore);
+      }
+
+      document.getElementById('final-score').innerText = Math.floor(score).toString().padStart(5, '0');
+      document.getElementById('final-highscore').innerText = Math.floor(highScore).toString().padStart(5, '0');
+      document.getElementById('final-ammo').innerText = ammo;
+
+      gameOverScreen.classList.remove('hidden');
+    }
+
+    function startGame() {
+      startScreen.classList.add('hidden');
+      gameOverScreen.classList.add('hidden');
+
+      score = 0;
+      speed = 7;
+      lastScoreCheck = 0;
+      dayNightTimer = 0;
+      isDarkMode = false;
+      document.body.classList.remove('dark-mode');
+      
+      hasGun = false;
+      ammo = 0;
+      
+      obstacles.length = 0;
+      particles.length = 0;
+      bullets.length = 0;
+      items.length = 0;
+
+      gameOver = false;
+      gameStarted = true;
+      dino.y = dino.groundY;
+      dino.velocityY = 0;
+      dino.jumpsLeft = 2;
+      dino.isRotating = false;
+      dino.rotation = 0;
+    }
+
+    // --- TECLA 'Q' PARA ALTERNAR A VISÃO 3D ---
+    function toggle3DView() {
+      targetView3D = targetView3D === 0 ? 1 : 0;
+      playSound('switch3d');
+    }
+
+    // --- EVENTOS ---
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      initBackgroundElements();
+    });
+
+    startBtn.addEventListener('click', startGame);
+    restartBtn.addEventListener('click', startGame);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyQ') {
+        toggle3DView();
+      }
+      if (e.code === 'Space' || e.code === 'ArrowUp') {
+        e.preventDefault();
+        if (!gameStarted || gameOver) {
+          startGame();
+        } else {
+          dino.jump();
+        }
+      }
+      if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        keys.down = true;
+      }
+      if (e.code === 'KeyA' || e.code === 'ControlLeft' || e.code === 'ControlRight') {
+        e.preventDefault();
+        dino.shoot();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'ArrowDown') {
+        keys.down = false;
+      }
+    });
+
+    // Iniciar
+    resizeCanvas();
+    initBackgroundElements();
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
