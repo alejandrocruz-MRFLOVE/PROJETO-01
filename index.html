@@ -1,1 +1,1209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dino Game - HD Ultimate Power Edition</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Courier New', Courier, monospace;
+      user-select: none;
+    }
+
+    #game-wrapper {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    /* --- TELAS SOBREPOSTAS --- */
+    .overlay-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 12, 20, 0.88);
+      backdrop-filter: blur(6px);
+      z-index: 10;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+
+    .overlay-screen.hidden {
+      display: none !important;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .overlay-screen h1 {
+      font-size: 42px;
+      color: #f1c40f;
+      text-shadow: 3px 3px 0 #c0392b, 6px 6px 0 #000;
+      margin-bottom: 15px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-align: center;
+    }
+
+    #game-over-screen h1 {
+      color: #e74c3c;
+      text-shadow: 3px 3px 0 #962d22, 6px 6px 0 #000;
+      font-size: 48px;
+      animation: pulse 1.5s infinite alternate;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      100% { transform: scale(1.05); }
+    }
+
+    .stats-board {
+      background: rgba(0, 0, 0, 0.65);
+      border: 3px solid #f39c12;
+      border-radius: 12px;
+      padding: 18px 35px;
+      margin-bottom: 20px;
+      text-align: center;
+      box-shadow: 0 0 20px rgba(243, 156, 18, 0.4);
+    }
+
+    .stats-board p {
+      font-size: 18px;
+      color: #ecf0f1;
+      margin: 6px 0;
+      font-weight: bold;
+    }
+
+    .stats-board span {
+      color: #f1c40f;
+    }
+
+    .btn-container {
+      display: flex;
+      gap: 15px;
+    }
+
+    .btn-action {
+      padding: 14px 32px;
+      font-size: 18px;
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: bold;
+      color: #fff;
+      background: linear-gradient(180deg, #2ecc71, #27ae60);
+      border: 4px solid #1e8449;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 6px 0 #145a32, 0 10px 15px rgba(0,0,0,0.5);
+      transition: all 0.1s ease;
+      text-transform: uppercase;
+    }
+
+    .btn-action:hover {
+      background: linear-gradient(180deg, #2edf78, #2ecc71);
+      transform: translateY(-2px);
+    }
+
+    .btn-action:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #145a32;
+    }
+
+    #start-btn, #restart-btn {
+      background: linear-gradient(180deg, #e74c3c, #c0392b);
+      border-color: #962d22;
+      box-shadow: 0 6px 0 #641e16;
+    }
+
+    #shop-btn {
+      background: linear-gradient(180deg, #f1c40f, #f39c12);
+      border-color: #d35400;
+      box-shadow: 0 6px 0 #a04000;
+      color: #000;
+    }
+
+    .instructions {
+      margin-top: 15px;
+      font-size: 13px;
+      color: #bdc3c7;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* --- LOJA --- */
+    .shop-items {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .shop-card {
+      background: rgba(0, 0, 0, 0.7);
+      border: 3px solid #f1c40f;
+      border-radius: 12px;
+      padding: 15px;
+      width: 230px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .shop-card h3 {
+      color: #f1c40f;
+      font-size: 17px;
+      margin-bottom: 8px;
+    }
+
+    .shop-card p {
+      color: #ccc;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+
+    .shop-card .price {
+      font-size: 15px;
+      color: #2ecc71;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .btn-buy {
+      padding: 8px 15px;
+      font-size: 13px;
+    }
+
+    .btn-buy.equipped {
+      background: linear-gradient(180deg, #3498db, #2980b9);
+      border-color: #1a5276;
+      box-shadow: 0 4px 0 #154360;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="game-wrapper">
+    <div id="start-screen" class="overlay-screen">
+      <h1>DINO: REALISTIC POWER</h1>
+      <div class="stats-board">
+        <p>SUAS MOEDAS: 🪙 <span id="menu-coins">0</span></p>
+      </div>
+      <div class="btn-container">
+        <button id="start-btn" class="btn-action">JOGAR</button>
+        <button id="shop-btn" class="btn-action">LOJA 🛒</button>
+      </div>
+      <p class="instructions">
+        <strong>Espaço / Seta Cima</strong>: Pular / Pulo Duplo<br>
+        <strong>Seta Baixo</strong>: Abaixar | <strong>Tecla A / Ctrl</strong>: Atirar (com AK-47)<br>
+        <strong>Tecla 1</strong>: Chuva de Meteoros | <strong>Tecla 2</strong>: Kamehameha<br>
+        <em>Meta: Alcance 10.000 Pontos para vencer!</em>
+      </p>
+    </div>
+
+    <div id="shop-screen" class="overlay-screen hidden">
+      <h1>LOJA DE PODERES</h1>
+      <div class="stats-board">
+        <p>SUAS MOEDAS: 🪙 <span id="shop-coins">0</span></p>
+      </div>
+      <div class="shop-items">
+        <div class="shop-card">
+          <div>
+            <h3>☄️ METEOROS</h3>
+            <p>Chuva devastadora de meteoros por 10s com efeito de tremor na tela!</p>
+          </div>
+          <div>
+            <div class="price">🪙 3000 Moedas</div>
+            <button id="buy-meteor-btn" class="btn-action btn-buy">COMPRAR</button>
+          </div>
+        </div>
+
+        <div class="shop-card">
+          <div>
+            <h3>💥 KAMEHAMEHA</h3>
+            <p>Dispara um feixe laser destruidor enquanto o Dino grita!</p>
+          </div>
+          <div>
+            <div class="price">🪙 1000 Moedas</div>
+            <button id="buy-kame-btn" class="btn-action btn-buy">COMPRAR</button>
+          </div>
+        </div>
+      </div>
+      <button id="close-shop-btn" class="btn-action">VOLTAR</button>
+    </div>
+
+    <div id="game-over-screen" class="overlay-screen hidden">
+      <h1 id="game-over-title">G A M E   O V E R</h1>
+      <div class="stats-board">
+        <p>PONTUAÇÃO: <span id="final-score">00000</span></p>
+        <p>MOEDAS GANHAS: 🪙 <span id="earned-coins">0</span></p>
+        <p>TOTAL DE MOEDAS: 🪙 <span id="total-coins">0</span></p>
+        <p>RECORDE: <span id="final-highscore">00000</span></p>
+      </div>
+      <div class="btn-container">
+        <button id="restart-btn" class="btn-action">JOGAR NOVAMENTE ⚡</button>
+      </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // UI Elements
+    const startScreen = document.getElementById('start-screen');
+    const shopScreen = document.getElementById('shop-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const gameOverTitle = document.getElementById('game-over-title');
+    const startBtn = document.getElementById('start-btn');
+    const shopBtn = document.getElementById('shop-btn');
+    const closeShopBtn = document.getElementById('close-shop-btn');
+    const restartBtn = document.getElementById('restart-btn');
+
+    const buyMeteorBtn = document.getElementById('buy-meteor-btn');
+    const buyKameBtn = document.getElementById('buy-kame-btn');
+
+    let groundY = 0;
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      groundY = canvas.height - 100;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // --- MOEDAS E LOJA ---
+    let totalCoins = parseInt(localStorage.getItem('dino_coins')) || 0;
+    let hasMeteorPower = localStorage.getItem('dino_power_meteor') === 'true';
+    let hasKamePower = localStorage.getItem('dino_power_kame') === 'true';
+
+    function updateCoinsUI() {
+      document.getElementById('menu-coins').innerText = totalCoins;
+      document.getElementById('shop-coins').innerText = totalCoins;
+
+      if (hasMeteorPower) {
+        buyMeteorBtn.innerText = "EQUIPADO";
+        buyMeteorBtn.classList.add('equipped');
+      } else {
+        buyMeteorBtn.innerText = "COMPRAR";
+      }
+
+      if (hasKamePower) {
+        buyKameBtn.innerText = "EQUIPADO";
+        buyKameBtn.classList.add('equipped');
+      } else {
+        buyKameBtn.innerText = "COMPRAR";
+      }
+    }
+
+    buyMeteorBtn.addEventListener('click', () => {
+      if (!hasMeteorPower) {
+        if (totalCoins >= 3000) {
+          totalCoins -= 3000;
+          hasMeteorPower = true;
+          localStorage.setItem('dino_coins', totalCoins);
+          localStorage.setItem('dino_power_meteor', 'true');
+          updateCoinsUI();
+        } else alert("Moedas insuficientes! Você precisa de 3000 moedas.");
+      }
+    });
+
+    buyKameBtn.addEventListener('click', () => {
+      if (!hasKamePower) {
+        if (totalCoins >= 1000) {
+          totalCoins -= 1000;
+          hasKamePower = true;
+          localStorage.setItem('dino_coins', totalCoins);
+          localStorage.setItem('dino_power_kame', 'true');
+          updateCoinsUI();
+        } else alert("Moedas insuficientes! Você precisa de 1000 moedas.");
+      }
+    });
+
+    shopBtn.addEventListener('click', () => {
+      startScreen.classList.add('hidden');
+      shopScreen.classList.remove('hidden');
+    });
+
+    closeShopBtn.addEventListener('click', () => {
+      shopScreen.classList.add('hidden');
+      startScreen.classList.remove('hidden');
+    });
+
+    // --- EFETUADOR DE SOM ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+
+      if (type === 'jump') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(160, now);
+        osc.frequency.exponentialRampToValueAtTime(620, now + 0.12);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + 0.12);
+      } else if (type === 'shoot') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.08);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + 0.08);
+      } else if (type === 'explode') {
+        const bufferSize = audioCtx.sampleRate * 0.25;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+        noise.connect(gain); gain.connect(audioCtx.destination);
+        noise.start(now);
+      } else if (type === 'kame') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(100, now);
+        osc.frequency.linearRampToValueAtTime(950, now + 1.2);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 1.2);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + 1.2);
+      } else if (type === 'win') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.5);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.5);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + 0.5);
+      }
+    }
+
+    // --- VARIÁVEIS DO JOGO ---
+    let gameStarted = false;
+    let gameOver = false;
+    let gameWon = false;
+    let score = 0;
+    let lastAKCheckPoint = 0;
+    let earnedCoinsInMatch = 0;
+    let highScore = localStorage.getItem('dino_highscore_full') || 0;
+    let speed = 7;
+    let frameCount = 0;
+
+    // ANIMAÇÃO THE END
+    let theEndScale = 0.1;
+
+    // ARMA AK-47
+    let hasAK47 = false;
+    let akAmmo = 0;
+
+    // DIA / NOITE
+    let skyGradientTop = '#70a1ff';
+    let skyGradientBottom = '#a1c4fd';
+    let dinoColor = '#2f3542';
+    let nightProgress = 0;
+
+    // PODERES
+    let meteorActiveTimer = 0;
+    let meteorCooldown = 0;
+    let kameActiveTimer = 0;
+    let kameCooldown = 0;
+    let kameY = 0;
+
+    const keys = { up: false, down: false };
+
+    // --- ATIVAÇÃO DE PODERES ---
+    function activateMeteor() {
+      if (hasMeteorPower && meteorCooldown <= 0 && gameStarted && !gameOver && !gameWon) {
+        meteorActiveTimer = 600; // 10s
+        meteorCooldown = 1800;   // 30s
+      }
+    }
+
+    function activateKame() {
+      if (hasKamePower && kameCooldown <= 0 && gameStarted && !gameOver && !gameWon) {
+        kameActiveTimer = 90;    // 1.5s
+        kameCooldown = 1800;     // 30s
+        kameY = dino.y + 15;
+        playSound('kame');
+      }
+    }
+
+    // --- PROJÉTEIS (BALAS DE AK-47) ---
+    const bullets = [];
+    class Bullet {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.speed = 22;
+        this.width = 16;
+        this.height = 4;
+      }
+      update() { this.x += this.speed; }
+      draw() {
+        ctx.fillStyle = '#f39c12';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillRect(this.x + 4, this.y + 1, this.width - 4, this.height - 2);
+      }
+    }
+
+    // --- ITEM AK-47 NO CAMINHO ---
+    const akItems = [];
+    class AKItem {
+      constructor() {
+        this.x = canvas.width + 50;
+        this.y = groundY - 45;
+        this.width = 42;
+        this.height = 20;
+        this.floatTimer = 0;
+      }
+      update() {
+        this.x -= speed;
+        this.floatTimer += 0.08;
+      }
+      draw() {
+        const floatY = this.y + Math.sin(this.floatTimer) * 5;
+        
+        // Aura brilhante
+        ctx.fillStyle = 'rgba(241, 196, 15, 0.3)';
+        ctx.beginPath();
+        ctx.arc(this.x + 20, floatY + 10, 24, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Desenho detalhado AK-47 Pixel Art
+        ctx.fillStyle = '#7f8c8d'; // Cano
+        ctx.fillRect(this.x + 18, floatY + 4, 22, 3);
+        ctx.fillStyle = '#2c3e50'; // Corpo
+        ctx.fillRect(this.x + 10, floatY + 3, 14, 8);
+        ctx.fillStyle = '#d35400'; // Coronha e Carregador
+        ctx.fillRect(this.x, floatY + 6, 10, 8);
+        ctx.fillRect(this.x + 16, floatY + 10, 6, 9);
+      }
+    }
+
+    // --- METEOROS COM COLISÃO E ONDA DE CHOQUE MELHORADAS ---
+    const meteors = [];
+    class Meteor {
+      constructor() {
+        this.x = Math.random() * (canvas.width + 300) - 100;
+        this.y = -60;
+        this.vx = -8;
+        this.vy = 14;
+        this.radius = 22;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+      }
+      draw() {
+        // Cauda do Meteoro
+        ctx.strokeStyle = 'rgba(230, 126, 34, 0.6)';
+        ctx.lineWidth = this.radius * 1.5;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(this.x - this.vx * 4, this.y - this.vy * 4);
+        ctx.stroke();
+
+        // Núcleo
+        ctx.fillStyle = '#e67e22';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#f1c40f';
+        ctx.beginPath();
+        ctx.arc(this.x + 3, this.y - 3, this.radius * 0.65, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // --- PARTÍCULAS / POEIRA ---
+    const particles = [];
+    class Particle {
+      constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 8;
+        this.vy = (Math.random() - 0.8) * 6;
+        this.size = Math.random() * 6 + 3;
+        this.color = color;
+        this.life = 25;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life--;
+      }
+      draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.size, this.size);
+      }
+    }
+
+    // --- NUVENS E ESTRELAS ---
+    const clouds = [];
+    const stars = [];
+    for (let i = 0; i < 6; i++) clouds.push({ x: Math.random() * window.innerWidth, y: Math.random() * 160 + 30, speed: Math.random() * 0.5 + 0.3 });
+    for (let i = 0; i < 45; i++) stars.push({ x: Math.random() * window.innerWidth, y: Math.random() * 240 + 10, size: Math.random() * 2 + 1 });
+
+    // --- DINOSSAURO (COM ESTÍLO REALISTA & ANIMAÇÕES) ---
+    const dino = {
+      x: 80,
+      y: 0,
+      normalWidth: 46,
+      normalHeight: 50,
+      duckWidth: 60,
+      duckHeight: 32,
+      width: 46,
+      height: 50,
+      velocityY: 0,
+      gravity: 0.75,
+      jumpForce: -13.5,
+      isGrounded: true,
+      isDucking: false,
+      legFrame: 0,
+      jumpsLeft: 2,
+
+      shoot() {
+        if (hasAK47 && akAmmo > 0 && gameStarted && !gameOver && !gameWon) {
+          akAmmo--;
+          const bulletY = this.isDucking ? this.y + 12 : this.y + 18;
+          bullets.push(new Bullet(this.x + this.width + 10, bulletY));
+          playSound('shoot');
+
+          // Flash no cano
+          for (let i = 0; i < 4; i++) {
+            particles.push(new Particle(this.x + this.width + 12, bulletY, '#f1c40f'));
+          }
+
+          if (akAmmo <= 0) hasAK47 = false;
+        }
+      },
+
+      jump() {
+        if (this.isGrounded && !this.isDucking) {
+          this.velocityY = this.jumpForce;
+          this.isGrounded = false;
+          this.jumpsLeft = 1;
+          playSound('jump');
+        } else if (!this.isGrounded && this.jumpsLeft > 0) {
+          this.velocityY = this.jumpForce * 0.85;
+          this.jumpsLeft = 0;
+          playSound('jump');
+        }
+      },
+
+      update() {
+        if (keys.down && this.isGrounded) {
+          this.isDucking = true;
+          this.width = this.duckWidth;
+          this.height = this.duckHeight;
+        } else {
+          this.isDucking = false;
+          this.width = this.normalWidth;
+          this.height = this.normalHeight;
+        }
+
+        this.velocityY += keys.down && !this.isGrounded ? this.gravity * 1.8 : this.gravity;
+        this.y += this.velocityY;
+
+        if (this.y >= groundY - this.height) {
+          this.y = groundY - this.height;
+          this.velocityY = 0;
+          this.isGrounded = true;
+          this.jumpsLeft = 2;
+        }
+
+        if (frameCount % 5 === 0) {
+          this.legFrame = this.legFrame === 0 ? 1 : 0;
+        }
+      },
+
+      draw() {
+        ctx.fillStyle = dinoColor;
+
+        if (!this.isDucking) {
+          // --- EM PÉ ---
+          // Cabeça
+          ctx.fillRect(this.x + 18, this.y, 26, 18);
+          ctx.fillRect(this.x + 34, this.y + 6, 12, 6); 
+          
+          // Olho Brilhante
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(this.x + 34, this.y + 3, 4, 4);
+          ctx.fillStyle = '#000';
+          ctx.fillRect(this.x + 36, this.y + 4, 2, 2);
+
+          ctx.fillStyle = dinoColor;
+          // Corpo
+          ctx.fillRect(this.x + 10, this.y + 16, 28, 22);
+
+          // AK-47 EQUIPADA NA MÃO
+          if (hasAK47) {
+            ctx.fillStyle = '#7f8c8d';
+            ctx.fillRect(this.x + 26, this.y + 20, 24, 4); // Cano
+            ctx.fillStyle = '#d35400';
+            ctx.fillRect(this.x + 20, this.y + 22, 8, 6);  // Coronha
+            ctx.fillRect(this.x + 34, this.y + 24, 5, 8);  // Pente
+          } else {
+            // Braço Normal
+            ctx.fillRect(this.x + 30, this.y + 22, 8, 4);
+          }
+
+          // RABO ANATÔMICO ARTICULADO
+          ctx.fillRect(this.x + 2, this.y + 20, 8, 8);
+          ctx.fillRect(this.x - 4, this.y + 18, 6, 6);
+          ctx.fillRect(this.x - 9, this.y + 16, 5, 4);
+
+          // PERNAS ANIMADAS COM SOMBRA
+          if (this.isGrounded && gameStarted && !gameOver && !gameWon) {
+            if (this.legFrame === 0) {
+              ctx.fillRect(this.x + 14, this.y + 38, 7, 12);
+              ctx.fillRect(this.x + 28, this.y + 38, 7, 6);
+            } else {
+              ctx.fillRect(this.x + 14, this.y + 38, 7, 6);
+              ctx.fillRect(this.x + 28, this.y + 38, 7, 12);
+            }
+          } else {
+            ctx.fillRect(this.x + 14, this.y + 38, 7, 8);
+            ctx.fillRect(this.x + 28, this.y + 38, 7, 8);
+          }
+        } else {
+          // --- ABAIXADO ---
+          ctx.fillRect(this.x + 12, this.y + 8, 38, 16);
+          ctx.fillRect(this.x + 42, this.y, 18, 14);
+          
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(this.x + 52, this.y + 2, 4, 4);
+          ctx.fillStyle = dinoColor;
+
+          if (hasAK47) {
+            ctx.fillStyle = '#7f8c8d';
+            ctx.fillRect(this.x + 36, this.y + 12, 22, 4);
+          }
+
+          // Rabo Abaixado
+          ctx.fillRect(this.x, this.y + 12, 12, 6);
+          ctx.fillRect(this.x - 6, this.y + 10, 6, 4);
+
+          // Pernas Abaixado
+          if (this.isGrounded && gameStarted && !gameOver && !gameWon) {
+            if (this.legFrame === 0) {
+              ctx.fillRect(this.x + 18, this.y + 24, 7, 8);
+              ctx.fillRect(this.x + 36, this.y + 24, 7, 4);
+            } else {
+              ctx.fillRect(this.x + 18, this.y + 24, 7, 4);
+              ctx.fillRect(this.x + 36, this.y + 24, 7, 8);
+            }
+          } else {
+            ctx.fillRect(this.x + 20, this.y + 24, 7, 6);
+            ctx.fillRect(this.x + 34, this.y + 24, 7, 6);
+          }
+        }
+      }
+    };
+
+    // --- OBSTÁCULOS DETALHADOS ---
+    const obstacles = [];
+    class Obstacle {
+      constructor() {
+        this.x = canvas.width + 100;
+        this.type = Math.random() < 0.65 ? 'cactus' : 'bird';
+
+        if (this.type === 'cactus') {
+          this.width = Math.random() > 0.5 ? 32 : 48;
+          this.height = 50;
+          this.y = groundY - this.height;
+        } else {
+          this.width = 42;
+          this.height = 32;
+          const birdYHeights = [groundY - 80, groundY - 52, groundY - 26];
+          this.y = birdYHeights[Math.floor(Math.random() * birdYHeights.length)];
+          this.wingFrame = 0;
+        }
+      }
+      update() {
+        this.x -= speed;
+        if (this.type === 'bird' && frameCount % 7 === 0) {
+          this.wingFrame = this.wingFrame === 0 ? 1 : 0;
+        }
+      }
+      draw() {
+        if (this.type === 'cactus') {
+          // Cacto Texturizado Realista
+          ctx.fillStyle = '#27ae60';
+          ctx.fillRect(this.x, this.y, this.width, this.height);
+          ctx.fillStyle = '#1e8449';
+          ctx.fillRect(this.x + 4, this.y, 6, this.height);
+          ctx.fillRect(this.x + this.width - 8, this.y + 8, 4, this.height - 12);
+          
+          // Espinhos
+          ctx.fillStyle = '#f1c40f';
+          ctx.fillRect(this.x - 2, this.y + 12, 3, 2);
+          ctx.fillRect(this.x + this.width, this.y + 24, 3, 2);
+        } else {
+          // PÁSSARO ANIMADO DETALHADO
+          ctx.fillStyle = '#e74c3c';
+          ctx.fillRect(this.x + 10, this.y + 10, 22, 14);
+          ctx.fillRect(this.x, this.y + 6, 12, 10);      
+          ctx.fillStyle = '#f1c40f';
+          ctx.fillRect(this.x - 6, this.y + 8, 6, 4);   // Bico
+          
+          ctx.fillStyle = '#c0392b';
+          if (this.wingFrame === 0) {
+            ctx.fillRect(this.x + 14, this.y - 8, 10, 18);
+          } else {
+            ctx.fillRect(this.x + 14, this.y + 14, 10, 14);
+          }
+        }
+      }
+    }
+
+    // --- SISTEMA DE ILUMINAÇÃO & CEU REALISTA ---
+    function updateSkyAndLighting() {
+      const cycleTime = frameCount * 0.0012;
+      nightProgress = (Math.sin(cycleTime) + 1) / 2;
+
+      // Cores do Céu Gradiente
+      const r1 = Math.floor(112 * (1 - nightProgress) + 10 * nightProgress);
+      const g1 = Math.floor(161 * (1 - nightProgress) + 12 * nightProgress);
+      const b1 = Math.floor(255 * (1 - nightProgress) + 24 * nightProgress);
+
+      const r2 = Math.floor(220 * (1 - nightProgress) + 25 * nightProgress);
+      const g2 = Math.floor(235 * (1 - nightProgress) + 30 * nightProgress);
+      const b2 = Math.floor(255 * (1 - nightProgress) + 50 * nightProgress);
+
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      grad.addColorStop(0, `rgb(${r1},${g1},${b1})`);
+      grad.addColorStop(1, `rgb(${r2},${g2},${b2})`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const dinoVal = Math.floor(47 * (1 - nightProgress) + 240 * nightProgress);
+      dinoColor = `rgb(${dinoVal}, ${dinoVal}, ${dinoVal})`;
+
+      // Sol e Lua
+      const orbitAngle = cycleTime;
+      const sunX = canvas.width / 2 + Math.cos(orbitAngle) * (canvas.width * 0.42);
+      const sunY = groundY - 140 + Math.sin(orbitAngle) * 230;
+
+      const moonX = canvas.width / 2 + Math.cos(orbitAngle + Math.PI) * (canvas.width * 0.42);
+      const moonY = groundY - 140 + Math.sin(orbitAngle + Math.PI) * 230;
+
+      if (sunY < groundY + 60) {
+        ctx.fillStyle = '#f1c40f';
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, 28, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (nightProgress > 0.25) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${(nightProgress - 0.25) * 1.3})`;
+        stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
+      }
+
+      if (moonY < groundY + 60) {
+        ctx.fillStyle = '#f5f6fa';
+        ctx.beginPath();
+        ctx.arc(moonX, moonY, 22, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawEnvironment() {
+      updateSkyAndLighting();
+
+      // Nuvens
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.8 - nightProgress * 0.5})`;
+      clouds.forEach(c => {
+        if (gameStarted && !gameOver && !gameWon) c.x -= c.speed;
+        if (c.x < -100) c.x = canvas.width + 50;
+        ctx.fillRect(c.x, c.y, 54, 16);
+        ctx.fillRect(c.x + 12, c.y - 8, 30, 10);
+      });
+
+      // Linha do Chão Sombreada
+      ctx.strokeStyle = dinoColor;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, groundY);
+      ctx.lineTo(canvas.width, groundY);
+      ctx.stroke();
+    }
+
+    function checkCollision(r1, r2) {
+      return (
+        r1.x < r2.x + r2.width &&
+        r1.x + r1.width > r2.x &&
+        r1.y < r2.y + r2.height &&
+        r1.y + r1.height > r2.y
+      );
+    }
+
+    // --- LOOP PRINCIPAL DO JOGO ---
+    let spawnTimer = 0;
+
+    function gameLoop() {
+      frameCount++;
+
+      ctx.save();
+
+      if (meteorActiveTimer > 0) {
+        const shake = (Math.random() - 0.5) * 14;
+        ctx.translate(shake, shake);
+      }
+
+      ctx.clearRect(-20, -20, canvas.width + 40, canvas.height + 40);
+
+      drawEnvironment();
+
+      if (gameStarted) {
+        if (!gameOver && !gameWon) {
+          score += 0.18;
+          earnedCoinsInMatch = Math.floor(score);
+          speed += 0.0008;
+
+          // CHECAGEM DE SPAN DE AK-47 (A CADA 50 PONTOS -> 30% DE CHANCE)
+          const currentPointMilestone = Math.floor(score / 50);
+          if (currentPointMilestone > lastAKCheckPoint) {
+            lastAKCheckPoint = currentPointMilestone;
+            if (Math.random() <= 0.30) {
+              akItems.push(new AKItem());
+            }
+          }
+
+          // VITORIA AO CHEGAR EM 10.000 PONTOS!
+          if (score >= 10000) {
+            triggerGameWin();
+          }
+
+          // Decrementar Cooldowns
+          if (meteorCooldown > 0) meteorCooldown--;
+          if (kameCooldown > 0) kameCooldown--;
+
+          // Meteoros
+          if (meteorActiveTimer > 0) {
+            meteorActiveTimer--;
+            if (frameCount % 3 === 0) meteors.push(new Meteor());
+          }
+
+          if (kameActiveTimer > 0) kameActiveTimer--;
+
+          // Spawnar Obstáculos
+          spawnTimer++;
+          if (spawnTimer > Math.max(38, 85 - speed * 2.5)) {
+            obstacles.push(new Obstacle());
+            spawnTimer = 0;
+          }
+
+          // Atualizar AK Items
+          for (let i = akItems.length - 1; i >= 0; i--) {
+            const item = akItems[i];
+            item.update();
+            item.draw();
+
+            if (checkCollision(dino, { x: item.x, y: item.y, width: item.width, height: item.height })) {
+              hasAK47 = true;
+              akAmmo += 25; // 25 Balas por AK
+              playSound('shoot');
+              akItems.splice(i, 1);
+            } else if (item.x < -100) {
+              akItems.splice(i, 1);
+            }
+          }
+
+          // Atualizar Balas
+          for (let i = bullets.length - 1; i >= 0; i--) {
+            const b = bullets[i];
+            b.update();
+            b.draw();
+
+            for (let j = obstacles.length - 1; j >= 0; j--) {
+              if (checkCollision(b, obstacles[j])) {
+                for (let k = 0; k < 6; k++) particles.push(new Particle(b.x, b.y, '#e74c3c'));
+                obstacles.splice(j, 1);
+                bullets.splice(i, 1);
+                playSound('explode');
+                break;
+              }
+            }
+            if (b && b.x > canvas.width) bullets.splice(i, 1);
+          }
+
+          // Atualizar Meteoros com COLISÃO PERFEITA MELHORADA
+          for (let i = meteors.length - 1; i >= 0; i--) {
+            const m = meteors[i];
+            m.update();
+            m.draw();
+
+            // Quando atinge o solo -> Onda de Choque que destrói tudo próximo
+            if (m.y >= groundY - 10) {
+              playSound('explode');
+              for (let k = 0; k < 15; k++) particles.push(new Particle(m.x, groundY, '#e67e22'));
+              
+              // Raio de Explosão Aumentado (Onda de choque)
+              const explosionBox = { x: m.x - 90, y: groundY - 100, width: 180, height: 120 };
+              for (let j = obstacles.length - 1; j >= 0; j--) {
+                if (checkCollision(explosionBox, obstacles[j])) {
+                  obstacles.splice(j, 1);
+                }
+              }
+              meteors.splice(i, 1);
+              continue;
+            }
+
+            // Colisão direta do meteoro caindo com obstáculos
+            const meteorBox = { x: m.x - m.radius, y: m.y - m.radius, width: m.radius * 2, height: m.radius * 2 };
+            for (let j = obstacles.length - 1; j >= 0; j--) {
+              if (checkCollision(meteorBox, obstacles[j])) {
+                for (let k = 0; k < 12; k++) particles.push(new Particle(m.x, m.y, '#f1c40f'));
+                obstacles.splice(j, 1);
+                meteors.splice(i, 1);
+                playSound('explode');
+                break;
+              }
+            }
+          }
+
+          // Atualizar Kamehameha
+          if (kameActiveTimer > 0) {
+            ctx.fillStyle = '#3498db';
+            ctx.fillRect(dino.x + dino.width, kameY - 20, canvas.width, 40);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(dino.x + dino.width, kameY - 8, canvas.width, 16);
+
+            ctx.fillStyle = '#f1c40f';
+            ctx.font = 'bold 26px "Courier New", Courier, monospace';
+            ctx.fillText("KAMEEE-KAMEEE-HAAA!", dino.x - 40, dino.y - 35);
+
+            const kameRect = { x: dino.x + dino.width, y: kameY - 20, width: canvas.width, height: 40 };
+            for (let j = obstacles.length - 1; j >= 0; j--) {
+              if (checkCollision(kameRect, obstacles[j])) {
+                obstacles.splice(j, 1);
+                playSound('explode');
+              }
+            }
+          }
+
+          // Partículas
+          for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update();
+            particles[i].draw();
+            if (particles[i].life <= 0) particles.splice(i, 1);
+          }
+
+          // Obstáculos & Colisão com Dino
+          for (let i = obstacles.length - 1; i >= 0; i--) {
+            const obs = obstacles[i];
+            obs.update();
+            obs.draw();
+
+            if (checkCollision(dino, obs)) {
+              triggerGameOver();
+            }
+
+            if (obs.x < -100) obstacles.splice(i, 1);
+          }
+
+          dino.update();
+          dino.draw();
+
+          // HUD SUPERIOR
+          ctx.fillStyle = dinoColor;
+          ctx.font = 'bold 18px "Courier New", Courier, monospace';
+          ctx.fillText(`PONTOS: ${Math.floor(score).toString().padStart(5, '0')} / 10000`, canvas.width - 320, 35);
+          ctx.fillText(`MOEDAS: 🪙 ${earnedCoinsInMatch}`, canvas.width - 320, 65);
+
+          if (hasAK47) {
+            ctx.fillStyle = '#e67e22';
+            ctx.fillText(`🔫 AK-47: ${akAmmo} BALAS`, canvas.width - 320, 95);
+          }
+
+          // Ícones dos Poderes
+          if (hasMeteorPower) {
+            ctx.fillStyle = meteorCooldown > 0 ? '#7f8c8d' : '#e67e22';
+            const cd = meteorCooldown > 0 ? `(${Math.ceil(meteorCooldown/60)}s)` : '[TECLA 1]';
+            ctx.fillText(`☄️ METEORO ${cd}`, 20, 40);
+          }
+
+          if (hasKamePower) {
+            ctx.fillStyle = kameCooldown > 0 ? '#7f8c8d' : '#3498db';
+            const cd = kameCooldown > 0 ? `(${Math.ceil(kameCooldown/60)}s)` : '[TECLA 2]';
+            ctx.fillText(`💥 KAMEHAMEHA ${cd}`, 20, 70);
+          }
+        } else if (gameWon) {
+          // TELA DE FINAL / VICTORY (THE END CRESCENDO)
+          if (theEndScale < 1.0) theEndScale += 0.015;
+
+          ctx.save();
+          ctx.translate(canvas.width / 2, canvas.height / 2 - 50);
+          ctx.scale(theEndScale, theEndScale);
+
+          ctx.fillStyle = '#f1c40f';
+          ctx.font = '900 80px "Courier New", Courier, monospace';
+          ctx.textAlign = 'center';
+          ctx.shadowColor = '#e74c3c';
+          ctx.shadowBlur = 20;
+          ctx.fillText("THE END", 0, 0);
+
+          ctx.fillStyle = '#2ecc71';
+          ctx.font = 'bold 30px "Courier New", Courier, monospace';
+          ctx.fillText("VOCÊ ZEROU O JOGO!", 0, 60);
+          ctx.restore();
+        }
+      }
+
+      ctx.restore();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function triggerGameWin() {
+      gameWon = true;
+      playSound('win');
+
+      totalCoins += earnedCoinsInMatch;
+      localStorage.setItem('dino_coins', totalCoins);
+
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('dino_highscore_full', highScore);
+      }
+
+      setTimeout(() => {
+        gameOverTitle.innerText = "🏆 VOCÊ VENCEU! 🏆";
+        gameOverTitle.style.color = "#f1c40f";
+        document.getElementById('final-score').innerText = Math.floor(score).toString().padStart(5, '0');
+        document.getElementById('earned-coins').innerText = earnedCoinsInMatch;
+        document.getElementById('total-coins').innerText = totalCoins;
+        document.getElementById('final-highscore').innerText = Math.floor(highScore).toString().padStart(5, '0');
+        gameOverScreen.classList.remove('hidden');
+      }, 2500);
+    }
+
+    function triggerGameOver() {
+      gameOver = true;
+      playSound('explode');
+
+      totalCoins += earnedCoinsInMatch;
+      localStorage.setItem('dino_coins', totalCoins);
+
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('dino_highscore_full', highScore);
+      }
+
+      gameOverTitle.innerText = "G A M E   O V E R";
+      gameOverTitle.style.color = "#e74c3c";
+      document.getElementById('final-score').innerText = Math.floor(score).toString().padStart(5, '0');
+      document.getElementById('earned-coins').innerText = earnedCoinsInMatch;
+      document.getElementById('total-coins').innerText = totalCoins;
+      document.getElementById('final-highscore').innerText = Math.floor(highScore).toString().padStart(5, '0');
+
+      gameOverScreen.classList.remove('hidden');
+    }
+
+    function resetGame() {
+      score = 0;
+      lastAKCheckPoint = 0;
+      earnedCoinsInMatch = 0;
+      speed = 7;
+      frameCount = 0;
+      spawnTimer = 0;
+      meteorActiveTimer = 0;
+      kameActiveTimer = 0;
+      meteorCooldown = 0;
+      kameCooldown = 0;
+      theEndScale = 0.1;
+
+      hasAK47 = false;
+      akAmmo = 0;
+
+      obstacles.length = 0;
+      meteors.length = 0;
+      bullets.length = 0;
+      akItems.length = 0;
+      particles.length = 0;
+
+      dino.y = groundY - dino.height;
+      dino.velocityY = 0;
+      dino.isGrounded = true;
+
+      gameOver = false;
+      gameWon = false;
+      gameStarted = true;
+
+      startScreen.classList.add('hidden');
+      shopScreen.classList.add('hidden');
+      gameOverScreen.classList.add('hidden');
+    }
+
+    // --- CONTROLES ---
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' || e.code === 'ArrowUp') {
+        if (!gameStarted) resetGame();
+        else if (!gameOver && !gameWon) dino.jump();
+        keys.up = true;
+      }
+      if (e.code === 'ArrowDown') keys.down = true;
+
+      if (e.code === 'KeyA' || e.code === 'ControlLeft') dino.shoot();
+      if (e.code === 'Digit1') activateMeteor();
+      if (e.code === 'Digit2') activateKame();
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space' || e.code === 'ArrowUp') keys.up = false;
+      if (e.code === 'ArrowDown') keys.down = false;
+    });
+
+    canvas.addEventListener('click', () => {
+      if (gameStarted && !gameOver && !gameWon && hasAK47) {
+        dino.shoot();
+      }
+    });
+
+    startBtn.addEventListener('click', resetGame);
+    restartBtn.addEventListener('click', resetGame);
+
+    // Inicializar
+    updateCoinsUI();
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
